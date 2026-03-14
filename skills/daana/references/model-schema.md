@@ -107,7 +107,8 @@ When `daana-cli` is not available, enforce these rules:
 6. **Group inner attribute constraints** -- Inner attributes have only `id`, `name`, `definition`, `type`. Max 1 of each type per group.
 7. **Entity uniqueness** -- No duplicate entity `id` values within the model.
 8. **Attribute uniqueness** -- No duplicate attribute `id` values within the same entity. Exception: an outer group attribute and its first inner member may share the same `id`.
-9. **Relationship entity references** -- `source_entity_id` and `target_entity_id` must each match an existing entity `id`.
-10. **Non-empty collections** -- `entities` array must have at least one entity. Each entity's `attributes` array must have at least one attribute.
-11. **Boolean type** -- `effective_timestamp` must be a boolean (`true` or `false`), not a string.
-12. **String quoting** -- `id`, `name`, `definition`, `description`, `type`, `source_entity_id`, `target_entity_id` values should be quoted strings in YAML.
+9. **Relationship uniqueness** -- No duplicate relationship `id` values within the model.
+10. **Relationship entity references** -- `source_entity_id` and `target_entity_id` must each match an existing entity `id`.
+11. **Non-empty collections** -- `entities` array must have at least one entity. Each entity's `attributes` array must have at least one attribute.
+12. **Boolean type** -- `effective_timestamp` must be a boolean (`true` or `false`), not a string.
+13. **String quoting** -- `id`, `name`, `definition`, `description`, `type`, `source_entity_id`, `target_entity_id` values should be quoted strings in YAML.

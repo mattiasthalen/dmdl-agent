@@ -97,7 +97,7 @@ These are defaults — the summary table gives the user a chance to override.
 
 For each attribute also infer:
 
-- `id` / `name` — UPPERCASE_WITH_UNDERSCORES version of what the user said (always identical).
+- `id` and `name` — both set to the same UPPERCASE_WITH_UNDERSCORES value.
 - `definition` — one concise sentence, drafted from the user's words.
 - `description` — additional business context, drafted from the user's words.
 
@@ -143,7 +143,7 @@ Let the user correct any inferences (e.g., "Actually, don't track email changes"
 
 1. Check if `daana-cli` is available by running `daana-cli --version`. If the command is not found or exits non-zero, fall back to built-in validation.
 2. **With daana-cli:** Run `daana-cli check model <path>` and surface any errors to help the user fix them.
-3. **Without daana-cli:** Apply validation rules from `references/model-schema.md` (required fields, naming format, type validity, group constraints, uniqueness, etc.).
+3. **Without daana-cli:** Apply validation rules from `${CLAUDE_SKILL_DIR}/references/model-schema.md` (required fields, naming format, type validity, group constraints, uniqueness, etc.).
 
 ---
 
@@ -186,7 +186,7 @@ After each entity is written:
 
 4. **Final validation:**
    - Run `daana-cli check model <path>` if available.
-   - Otherwise apply built-in validation rules from `references/model-schema.md`.
+   - Otherwise apply built-in validation rules from `${CLAUDE_SKILL_DIR}/references/model-schema.md`.
 
 5. **Suggest next steps:**
    *"Your model is ready! Next you'll want to create mappings to connect your source data — that's coming in a future version of /daana."*
@@ -209,6 +209,7 @@ Always set `id` and `name` to the same UPPERCASE_WITH_UNDERSCORES value. Never a
 - 2-space indentation.
 - Quoted string values for `id`, `name`, `definition`, `description`, `type`, `source_entity_id`, `target_entity_id`.
 - Boolean values unquoted (`true`, `false`).
+- When `effective_timestamp` is `false`, omit the field entirely rather than writing `effective_timestamp: false`.
 - Field ordering: `id`, `name`, `definition`, `description`, then type-specific fields.
 
 ### Initial Creation
