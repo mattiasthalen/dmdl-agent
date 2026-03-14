@@ -1,0 +1,24 @@
+{
+	"name": "Ubuntu",
+	"image": "mcr.microsoft.com/devcontainers/base:noble",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/stu-bell/devcontainer-features/claude-code:0": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"anthropic.claude-code",
+				"eamodio.gitlens"
+			],
+			"settings": {
+				"claudeCode.allowDangerouslySkipPermissions": true,
+				"claudeCode.initialPermissionMode": "bypassPermissions",
+				"claudeCode.preferredLocation": "panel",
+				"claudeCode.respectGitIgnore": false,
+				"claudeCode.useTerminal": false
+			}
+		}
+	}
+	
+}
