@@ -1,7 +1,6 @@
 ---
-name: daana-mapping
+name: map
 description: Interview-driven DMDL mapping file builder. Maps source tables to model entities with transformation expressions.
-disable-model-invocation: true
 ---
 
 # Daana Mapping Builder
@@ -16,8 +15,8 @@ You handle mapping files only (`mappings/<entity>-mapping.yaml`). You require `m
 
 Before doing anything else, read the reference files using the Read tool:
 
-1. `skills/daana/references/mapping-schema.md` — schema rules and validation constraints
-2. `skills/daana/references/mapping-examples.md` — annotated YAML templates and patterns
+1. `references/mapping-schema.md` — schema rules and validation constraints
+2. `references/mapping-examples.md` — annotated YAML templates and patterns
 
 These files are your source of truth for DMDL mapping schema details. Do not duplicate their content in conversation — refer back to them as needed.
 
@@ -40,14 +39,19 @@ Key behaviors:
 
 ## Source Schema Context
 
-If the orchestrator (`/daana`) parsed a source schema before invoking this skill, the parsed tables and columns will be available in conversation context. When source schema context is present:
+In Phase 1 (Entity Selection), after listing unmapped entities, ask: *"Do you have a source schema file to work from? (Swagger/OpenAPI JSON, OData metadata XML, or dlt schema) You can paste it, give me a file path, or skip this."*
 
+If the user provides a schema:
+1. Read `references/source-schema-formats.md` for parsing instructions.
+2. Auto-detect the format from the content structure.
+3. Parse and summarize the extracted tables, columns, and inferred DMDL types.
+4. Present the summary to the user for confirmation.
+
+When source schema context is available:
 - In Phase 2 step 6: auto-extract columns from the matching source table instead of asking the user to list them.
 - In Phase 2 step 7: use extracted columns for smart matching against model attributes.
 - If the user references a table not found in the parsed schema, warn and fall back to manual column entry.
 - Still confirm everything with the user — source schema suggestions are starting points, not final answers.
-
-For source schema format details, see `skills/daana/references/source-schema-formats.md`.
 
 ---
 
@@ -219,7 +223,7 @@ Always use `default_mapping_group`. Do not ask the user about this.
 
 1. Check if `daana-cli` is available by running `daana-cli --version`. If the command is not found or exits non-zero, fall back to built-in validation.
 2. **With daana-cli:** Run `daana-cli check mapping <file> --model model.yaml --connections connections.yaml` and surface any errors.
-3. **Without daana-cli:** Apply validation rules from `skills/daana/references/mapping-schema.md`:
+3. **Without daana-cli:** Apply validation rules from `references/mapping-schema.md`:
    - `entity_id` references a valid entity in `model.yaml`
    - All attribute `id` values reference valid attributes in that entity
    - All relationship `id` values reference valid relationships where this entity is the source
@@ -228,11 +232,15 @@ Always use `default_mapping_group`. Do not ask the user about this.
    - `source_table` in relationships matches a table defined in the mapping
    - No duplicate attribute IDs within a table
 
-### Step 6: Next Entity
+### Step 6: Next Entity or Handover
 
 *"Mapping for ORDER is saved and validated. Want to map another entity? (PRODUCT and SUPPLIER still need mappings.)"*
 
 If yes, loop back to Phase 1.
+
+If all entities are mapped (or the user declines), offer handover:
+*"All done with mappings! Want to explore your data with live queries? I can hand you over to `/daana:query`."*
+If the user accepts, invoke `/daana:query` using the Skill tool.
 
 ---
 
@@ -267,7 +275,7 @@ Always write to `mappings/<entity-lowercase>-mapping.yaml` (e.g., `mappings/cust
 
 ### Reference Templates
 
-Consult `skills/daana/references/mapping-examples.md` for YAML structure templates when generating output — minimal mapping, complete mapping with overrides, multi-table mapping, and relationship patterns.
+Consult `references/mapping-examples.md` for YAML structure templates when generating output — minimal mapping, complete mapping with overrides, multi-table mapping, and relationship patterns.
 
 ---
 

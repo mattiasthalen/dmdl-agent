@@ -1,15 +1,17 @@
 # daana-modeler
 
-daana-modeler is a suite of Claude Code skills for the Daana data platform. The `/daana` entrypoint orchestrates model and mapping creation.
+daana-modeler is a Claude Code plugin for the Daana data platform. It provides three skills for building and querying DMDL data models.
 
 ## Repository Structure
 
-- **`skills/daana/`** — Orchestrator skill (`/daana` entrypoint)
-  - `SKILL.md` — Routes to sub-skills based on project state
-  - `references/` — Shared DMDL schema, examples, and source schema formats
-- **`skills/daana-model/`** — Model interview skill (`/daana-model`)
+- **`.claude-plugin/`** — Plugin manifest
+  - `plugin.json` — Plugin metadata (name: `daana`)
+- **`skills/model/`** — Model interview skill (`/daana:model`)
   - `SKILL.md` — Builds model.yaml via interactive interview
-- **`skills/daana-mapping/`** — Mapping interview skill (`/daana-mapping`)
+- **`skills/map/`** — Mapping interview skill (`/daana:map`)
   - `SKILL.md` — Builds mapping files via interactive interview
+- **`skills/query/`** — Data query skill (`/daana:query`)
+  - `SKILL.md` — Answers natural language questions about data via live SQL
+- **`references/`** — Shared DMDL schema, examples, and source schema formats
 - **`docs/superpowers/specs/`** — Design specifications
 - **`docs/superpowers/plans/`** — Implementation plans

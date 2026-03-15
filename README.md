@@ -1,29 +1,35 @@
 # daana-modeler
 
-A Claude Code skill that interviews you to build DMDL model files.
+A Claude Code plugin that interviews you to build DMDL model and mapping files, and query your data warehouse.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Built for Claude Code](https://img.shields.io/badge/Built_for-Claude_Code-6f42c1.svg)](https://docs.anthropic.com/en/docs/claude-code)
 
 ## What It Does
 
-`/daana` is a slash command for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that walks you through an interactive interview to define business entities, attributes, and relationships — then generates a valid DMDL `model.yaml` file. Learn more about Daana and DMDL at [docs.daana.dev](https://docs.daana.dev).
+daana-modeler is a plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that provides three skills:
+
+- **`/daana:model`** — Interactive interview to define business entities, attributes, and relationships, generating a valid DMDL `model.yaml` file.
+- **`/daana:map`** — Interactive interview to map source tables to model entities, generating DMDL mapping files.
+- **`/daana:query`** — Natural language data agent that answers questions about your Focal-based Daana data warehouse via live SQL queries.
+
+Learn more about Daana and DMDL at [docs.daana.dev](https://docs.daana.dev).
 
 ## Installation
-
-**As a Claude Code plugin** (recommended):
 
 ```bash
 claude plugin add https://github.com/mattiasthalen/daana-modeler
 ```
 
-**As a local skill:**
-
-Copy the `skills/daana/` directory into your project's `.claude/skills/` directory.
-
 ## Usage
 
-Run the `/daana` slash command in Claude Code. The skill will interview you to define your data model step by step, then write a `model.yaml` file to your project.
+Run any of the skills as slash commands in Claude Code:
+
+- `/daana:model` — Start building your data model
+- `/daana:map` — Create source-to-model mappings
+- `/daana:query` — Query your data warehouse
+
+Each skill can hand you over to the next logical step when it completes.
 
 ## Documentation
 

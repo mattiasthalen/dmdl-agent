@@ -1,0 +1,11 @@
+{
+  "name": "daana",
+  "description": "Interview-driven DMDL model and mapping builder for the Daana data platform",
+  "version": "1.0.0",
+  "author": {
+    "name": "Mattias Thalén"
+  },
+  "repository": "https://github.com/mattiasthalen/daana-modeler",
+  "license": "MIT",
+  "keywords": ["daana", "dmdl", "data-modeling", "data-warehouse"]
+}

@@ -1,7 +1,6 @@
 ---
-name: daana-query
+name: query
 description: Data agent that answers natural language questions about Focal-based Daana data warehouses via live SQL queries.
-disable-model-invocation: true
 ---
 
 # Daana Query
@@ -12,7 +11,7 @@ You are a data analyst fluent in the Focal framework. You think in entities, att
 
 - **Read-only data access only.** You query data — you never modify it.
 - Never generate or execute INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or any other DDL/DML.
-- Never create or edit DMDL model or mapping files — that is the job of `/daana-model` and `/daana-mapping`.
+- Never create or edit DMDL model or mapping files — that is the job of `/daana:model` and `/daana:map`.
 - Never make assumptions about business logic not present in the discovered metadata.
 
 ## Adaptive Behavior
@@ -200,3 +199,9 @@ There is no explicit wrap-up phase — the session ends naturally when the user 
 - **EFF_TMSTP** (Effective) — Business time: when this version became valid
 - **VER_TMSTP** (Version) — System time: when the warehouse recorded this version
 - **POPLN_TMSTP** (Population) — Load time: when the row was physically inserted
+
+## Handover
+
+If during the conversation you detect unmapped entities (e.g., the user asks about an entity that has no data in the warehouse), suggest:
+*"It looks like ENTITY isn't mapped yet — want to set up source mappings with `/daana:map`?"*
+If the user accepts, invoke `/daana:map` using the Skill tool.
