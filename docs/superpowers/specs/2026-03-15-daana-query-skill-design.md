@@ -17,13 +17,32 @@
 
 ## Database Connection
 
-The skill connects via `docker exec` using the existing container setup:
+### Connection Setup
+
+On startup (before discovery), the skill asks the user for connection details:
+
+1. **Container name:** "What's the name of your Postgres container?" (e.g., `daana-test-customerdb`)
+2. **Database user:** "Database user?" (e.g., `dev`)
+3. **Database name:** "Database name?" (e.g., `customerdb`)
+
+The skill then connects via `docker exec`:
 
 ```bash
-docker exec -it daana-customerdb psql -U dev -d customerdb -c "<SQL>"
+docker exec <container> psql -U <user> -d <database> -P pager=off -c "<SQL>"
 ```
 
-No additional dependencies or connection configuration required.
+### Connection Flags
+
+- No `-it` flags — Claude Code's Bash tool has no interactive TTY
+- `-P pager=off` — prevents pager activation on large results
+- For machine-parseable output (agent interpretation): add `--csv` flag
+- For display output (showing to user): default `psql` tabular format
+
+The skill runs each query twice when presenting results: once with `--csv` for the agent to parse and summarize, once in default format for the user to read. Both invocations must include the `SET statement_timeout = '30s';` prefix since each `docker exec` is a separate `psql` session. For discovery queries (internal only), use `--csv` exclusively.
+
+### Connection Validation
+
+After collecting details, the skill runs a simple validation query (`SELECT 1`) to confirm connectivity before proceeding to discovery. If it fails, report the error and ask the user to verify the details.
 
 ## Discovery Phase
 
@@ -31,10 +50,35 @@ On startup, the skill automatically introspects the database by running a sequen
 
 ### Discovery Queries
 
-1. **List all schemas:** Identify available schemas (`daana_dw`, `stage`, etc.)
-2. **List all views and tables in `daana_dw`:** Discover entities by `VIEW_*` naming pattern, plus raw Focal tables (`_FOCAL`, `_DESC`, `_IDFR`, `_X`)
-3. **Get column details for all views:** Column names and types — reveals what attributes exist per entity
-4. **Sample metadata/semantic data:** Query `_DESC` tables to understand available TYPE_KEYs and what they represent
+All discovery queries use `--csv` format for easy parsing.
+
+1. **List all schemas:** Identify available schemas. In a Focal warehouse, `daana_dw` is the standard target schema — the remaining discovery queries assume it exists. If it does not, report this to the user and ask for guidance.
+   ```sql
+   SELECT schema_name FROM information_schema.schemata
+   WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+   ORDER BY schema_name;
+   ```
+
+2. **List all views and tables in `daana_dw`:**
+   ```sql
+   SELECT table_name, table_type
+   FROM information_schema.tables
+   WHERE table_schema = 'daana_dw'
+   ORDER BY table_type, table_name;
+   ```
+
+3. **Get column details for all views:**
+   ```sql
+   SELECT table_name, column_name, data_type
+   FROM information_schema.columns
+   WHERE table_schema = 'daana_dw'
+   ORDER BY table_name, ordinal_position;
+   ```
+
+4. **Sample TYPE_KEYs from DESC tables:** For each `{ENTITY}_DESC` table discovered in step 2:
+   ```sql
+   SELECT DISTINCT type_key FROM daana_dw.{entity}_desc ORDER BY type_key;
+   ```
 
 ### Post-Discovery Greeting
 
@@ -44,7 +88,7 @@ After discovery completes, greet the user with a summary:
 
 ### Discovery Failure
 
-If discovery fails (container not running, no `daana_dw` schema, connection error), report the error clearly and suggest troubleshooting steps (e.g., "Is the daana-customerdb container running? Try `docker ps` to check.").
+If discovery fails (container not running, no `daana_dw` schema, connection error), report the error clearly and suggest troubleshooting steps (e.g., "Is the daana-test-customerdb container running? Try `docker ps` to check.").
 
 ## Query Generation & Execution
 
@@ -55,7 +99,7 @@ If discovery fails (container not running, no `daana_dw` schema, connection erro
 3. **Mode check:**
    - *Confirm mode* (default): Show the SQL and ask "Run this?"
    - *Auto-execute mode*: Run immediately
-4. **Execute:** Run via `docker exec -it daana-customerdb psql -U dev -d customerdb -c "..."`
+4. **Execute:** Run via `docker exec <container> psql -U <user> -d <database> -P pager=off -c "..."`
 5. **Present results:** Show raw table output AND natural language summary/interpretation
 
 ### Query Target Selection
@@ -72,7 +116,10 @@ If discovery fails (container not running, no `daana_dw` schema, connection erro
 
 - **Read-only only:** Only `SELECT` statements permitted. The skill refuses to generate or execute INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or any other DDL/DML.
 - **Validation:** Before execution, verify the generated SQL is a SELECT statement (or a WITH/CTE followed by SELECT).
-- **Result limits:** Append `LIMIT 100` by default to prevent overwhelming output. User can request more explicitly.
+- **Result limits:** Append `LIMIT 100` by default. Hard upper limit of `LIMIT 1000`. User can request up to the hard limit explicitly. For larger datasets, suggest aggregations, filtering, or export approaches.
+- **Query timeout:** Prefix all queries with `SET statement_timeout = '30s';` to prevent long-running queries from blocking. If a query times out, inform the user and suggest simplifying (e.g., adding filters, reducing joins).
+- **Empty results:** When a valid query returns zero rows, explain what was searched and suggest broadening criteria.
+- **SQL generation safety:** The agent always generates SQL itself — user natural language is never interpolated directly into SQL strings. All identifiers use the discovered schema/table/column names.
 
 ## Mode Switching
 
@@ -162,3 +209,11 @@ The agent understands the three timestamp types:
 - **EFF_TMSTP** (Effective): Business time — when this version became valid
 - **VER_TMSTP** (Version): System time — when the warehouse recorded this version
 - **POPLN_TMSTP** (Population): Load time — when the row was physically inserted
+
+**Schema qualification:** Always use fully-qualified names (e.g., `daana_dw.view_customer`) to avoid ambiguity when multiple schemas contain similarly-named objects.
+
+## Future Work
+
+- **Orchestrator routing:** Add `/daana-query` as a routing target in `/daana` orchestrator, with criteria like "if the user asks a data question rather than wanting to build model/mapping files."
+- **Connection persistence:** Remember connection details across sessions (via memory system) so the user doesn't re-enter them each time.
+- **Export capabilities:** Support exporting query results to CSV files for larger datasets.
