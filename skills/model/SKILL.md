@@ -1,7 +1,6 @@
 ---
-name: daana-model
+name: model
 description: Interview-driven DMDL model.yaml builder. Walks users through defining entities, attributes, and relationships.
-disable-model-invocation: true
 ---
 
 # Daana Modeler
@@ -16,8 +15,8 @@ You handle `model.yaml` only. Never touch mapping, workflow, or connections file
 
 Before doing anything else, read the reference files using the Read tool:
 
-1. `skills/daana/references/model-schema.md` — schema rules and validation constraints
-2. `skills/daana/references/model-examples.md` — annotated YAML templates and patterns
+1. `references/model-schema.md` — schema rules and validation constraints
+2. `references/model-examples.md` — annotated YAML templates and patterns
 
 These files are your source of truth for DMDL schema details. Do not duplicate their content in conversation — refer back to them as needed.
 
@@ -41,13 +40,18 @@ Key behaviors:
 
 ## Source Schema Context
 
-If the orchestrator (`/daana`) parsed a source schema before invoking this skill, the parsed tables and columns will be available in conversation context. When source schema context is present:
+In Phase 1 (Detection & Setup), after detecting existing model state, ask: *"Do you have a source schema file to work from? (Swagger/OpenAPI JSON, OData metadata XML, or dlt schema) You can paste it, give me a file path, or skip this."*
 
-- In Phase 1 (Detection & Setup), when asking about entities: suggest entities based on tables found in the source schema.
+If the user provides a schema:
+1. Read `references/source-schema-formats.md` for parsing instructions.
+2. Auto-detect the format from the content structure.
+3. Parse and summarize the extracted tables, columns, and inferred DMDL types.
+4. Present the summary to the user for confirmation.
+
+When source schema context is available:
+- In Phase 1, when asking about entities: suggest entities based on tables found in the source schema.
 - In Phase 2 (Entity Interview), when gathering attributes: suggest attributes based on columns found in the matching source table, using inferred DMDL types as defaults.
 - Still confirm everything with the user — source schema suggestions are starting points, not final answers.
-
-For source schema format details, see `skills/daana/references/source-schema-formats.md`.
 
 ---
 
@@ -153,7 +157,7 @@ Let the user correct any inferences (e.g., "Actually, don't track email changes"
 
 1. Check if `daana-cli` is available by running `daana-cli --version`. If the command is not found or exits non-zero, fall back to built-in validation.
 2. **With daana-cli:** Run `daana-cli check model <path>` and surface any errors to help the user fix them.
-3. **Without daana-cli:** Apply validation rules from `skills/daana/references/model-schema.md` (required fields, naming format, type validity, group constraints, uniqueness, etc.).
+3. **Without daana-cli:** Apply validation rules from `references/model-schema.md` (required fields, naming format, type validity, group constraints, uniqueness, etc.).
 
 ---
 
@@ -196,10 +200,11 @@ After each entity is written:
 
 4. **Final validation:**
    - Run `daana-cli check model <path>` if available.
-   - Otherwise apply built-in validation rules from `skills/daana/references/model-schema.md`.
+   - Otherwise apply built-in validation rules from `references/model-schema.md`.
 
-5. **Suggest next steps:**
-   *"Your model is ready!"*
+5. **Suggest next steps and offer handover:**
+   *"Your model is ready! Want to create source mappings for your entities? I can hand you over to `/daana:map`."*
+   If the user accepts, invoke `/daana:map` using the Skill tool.
 
 ---
 
@@ -224,7 +229,7 @@ Always set `id` and `name` to the same UPPERCASE_WITH_UNDERSCORES value. Never a
 
 ### Initial Creation
 
-When no `model.yaml` exists, use the Write tool to create the file with model metadata and the first entity after the first entity interview completes. Include the `model:` top-level key, metadata fields, and `entities:` list. Refer to `skills/daana/references/model-examples.md` for the exact YAML structure.
+When no `model.yaml` exists, use the Write tool to create the file with model metadata and the first entity after the first entity interview completes. Include the `model:` top-level key, metadata fields, and `entities:` list. Refer to `references/model-examples.md` for the exact YAML structure.
 
 ### Incremental Updates
 
@@ -236,4 +241,4 @@ Default is `model.yaml` in the project root. Only ask for a different path if no
 
 ### Reference Templates
 
-Consult `skills/daana/references/model-examples.md` for YAML structure templates when generating output — minimal model, complete model with relationships, grouped attributes, and relationship direction patterns.
+Consult `references/model-examples.md` for YAML structure templates when generating output — minimal model, complete model with relationships, grouped attributes, and relationship direction patterns.
