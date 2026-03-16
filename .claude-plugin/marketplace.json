@@ -1,0 +1,12 @@
+{
+  "name": "daana-modeler",
+  "owner": {
+    "name": "Mattias Thalén"
+  },
+  "plugins": [
+    {
+      "name": "daana",
+      "source": "./"
+    }
+  ]
+}
