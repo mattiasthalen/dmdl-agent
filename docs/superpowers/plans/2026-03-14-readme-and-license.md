@@ -82,7 +82,7 @@ A Claude Code skill that interviews you to build DMDL model files.
 **As a Claude Code plugin** (recommended):
 
 ```bash
-claude plugin add https://github.com/mattiasthalen/daana-modeler
+claude plugin install https://github.com/mattiasthalen/daana-modeler
 ```
 
 **As a local skill:**

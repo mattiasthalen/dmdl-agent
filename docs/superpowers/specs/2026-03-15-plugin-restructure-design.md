@@ -82,7 +82,7 @@ daana-modeler/
 }
 ```
 
-No custom component paths are needed. The `skills/` directory is the default discovery location and will be auto-discovered. The `references/` directory is not a plugin component — skills read its files directly via paths relative to the plugin root (e.g., `references/model-schema.md`). When installed via `claude plugin add`, the entire plugin directory is cached locally and relative paths resolve from the plugin root.
+No custom component paths are needed. The `skills/` directory is the default discovery location and will be auto-discovered. The `references/` directory is not a plugin component — skills read its files directly via paths relative to the plugin root (e.g., `references/model-schema.md`). When installed via `claude plugin install`, the entire plugin directory is cached locally and relative paths resolve from the plugin root.
 
 ## Skill Changes
 
@@ -136,7 +136,7 @@ The core interview flows, validation rules, and behavioral instructions within e
 - Update usage section: replace `/daana` with `/daana:model`, `/daana:map`, `/daana:query`.
 - Add brief description of each skill's purpose.
 - Remove the "As a local skill: Copy the `skills/daana/` directory..." fallback instruction — it no longer applies with the new structure.
-- Installation command remains `claude plugin add` (already correct).
+- Installation command remains `claude plugin install` (already correct).
 
 ## Issues Resolved
 

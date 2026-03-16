@@ -18,7 +18,7 @@ Learn more about Daana and DMDL at [docs.daana.dev](https://docs.daana.dev).
 ## Installation
 
 ```bash
-claude plugin add https://github.com/mattiasthalen/daana-modeler
+claude plugin install https://github.com/mattiasthalen/daana-modeler
 ```
 
 ## Usage
