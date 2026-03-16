@@ -9,9 +9,9 @@ A Claude Code plugin that interviews you to build DMDL model and mapping files, 
 
 daana-modeler is a plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that provides three skills:
 
-- **`/daana:model`** — Interactive interview to define business entities, attributes, and relationships, generating a valid DMDL `model.yaml` file.
-- **`/daana:map`** — Interactive interview to map source tables to model entities, generating DMDL mapping files.
-- **`/daana:query`** — Natural language data agent that answers questions about your Focal-based Daana data warehouse via live SQL queries.
+- **`/daana-model`** — Interactive interview to define business entities, attributes, and relationships, generating a valid DMDL `model.yaml` file.
+- **`/daana-map`** — Interactive interview to map source tables to model entities, generating DMDL mapping files.
+- **`/daana-query`** — Natural language data agent that answers questions about your Focal-based Daana data warehouse via live SQL queries.
 
 Learn more about Daana and DMDL at [docs.daana.dev](https://docs.daana.dev).
 
@@ -26,9 +26,9 @@ claude plugin install daana
 
 Run any of the skills as slash commands in Claude Code:
 
-- `/daana:model` — Start building your data model
-- `/daana:map` — Create source-to-model mappings
-- `/daana:query` — Query your data warehouse
+- `/daana-model` — Start building your data model
+- `/daana-map` — Create source-to-model mappings
+- `/daana-query` — Query your data warehouse
 
 Each skill can hand you over to the next logical step when it completes.
 

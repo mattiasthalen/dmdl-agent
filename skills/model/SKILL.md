@@ -1,5 +1,5 @@
 ---
-name: model
+name: daana-model
 description: Interview-driven DMDL model.yaml builder. Walks users through defining entities, attributes, and relationships.
 ---
 
@@ -203,8 +203,8 @@ After each entity is written:
    - Otherwise apply built-in validation rules from `references/model-schema.md`.
 
 5. **Suggest next steps and offer handover:**
-   *"Your model is ready! Want to create source mappings for your entities? I can hand you over to `/daana:map`."*
-   If the user accepts, invoke `/daana:map` using the Skill tool.
+   *"Your model is ready! Want to create source mappings for your entities? I can hand you over to `/daana-map`."*
+   If the user accepts, invoke `/daana-map` using the Skill tool.
 
 ---
 

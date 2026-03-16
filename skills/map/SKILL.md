@@ -1,5 +1,5 @@
 ---
-name: map
+name: daana-map
 description: Interview-driven DMDL mapping file builder. Maps source tables to model entities with transformation expressions.
 ---
 
@@ -239,8 +239,8 @@ Always use `default_mapping_group`. Do not ask the user about this.
 If yes, loop back to Phase 1.
 
 If all entities are mapped (or the user declines), offer handover:
-*"All done with mappings! Want to explore your data with live queries? I can hand you over to `/daana:query`."*
-If the user accepts, invoke `/daana:query` using the Skill tool.
+*"All done with mappings! Want to explore your data with live queries? I can hand you over to `/daana-query`."*
+If the user accepts, invoke `/daana-query` using the Skill tool.
 
 ---
 
