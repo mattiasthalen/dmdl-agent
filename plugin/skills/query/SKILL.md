@@ -29,17 +29,27 @@ Detect the user's knowledge level and adjust:
 
 ### Step 1 — Look for connections.yaml
 
-Search for `connections.yaml` in the working directory. If found, parse it and list all profiles with their type. See `references/connections-schema.md` for the schema.
+**You MUST run this command before asking any connection questions:**
 
-> "I found these connection profiles in connections.yaml:"
-> 1. dev (postgresql)
-> 2. staging (postgresql)
-> 3. bigquery-prod (bigquery)
->
-> "Which one would you like to use?"
+```bash
+cat connections.yaml
+```
 
-If the user picks a non-PostgreSQL profile:
-> "Only PostgreSQL is supported right now. Pick another profile or connect manually?"
+- **If the file exists:** parse the YAML, list all profiles with their type, and ask the user which one to use. See `references/connections-schema.md` for the schema.
+
+  > "I found these connection profiles in connections.yaml:"
+  > 1. dev (postgresql)
+  > 2. staging (postgresql)
+  > 3. bigquery-prod (bigquery)
+  >
+  > "Which one would you like to use?"
+
+  **STOP and wait for the user's answer before proceeding.**
+
+  If the user picks a non-PostgreSQL profile:
+  > "Only PostgreSQL is supported right now. Pick another profile or connect manually?"
+
+- **If the file does not exist:** proceed to Step 3 (manual fallback).
 
 ### Step 2 — Extract connection details
 
@@ -72,16 +82,22 @@ If validation fails, report the error and ask the user to verify the details.
 
 ### Step 5 — Discovery consent
 
-After a successful connection, ask:
-> "Connected! Want me to discover the schema? I'll query metadata for schemas, tables, columns, and type keys."
+<HARD-GATE>
+**You MUST ask the user for permission before running any discovery queries. Do NOT skip this step.**
+</HARD-GATE>
 
-Prompt: **yes / no**
+After a successful connection, ask the user:
 
-If the user declines, skip to Phase 3. The agent works without metadata but may need to ask more clarifying questions about table and column names.
+> "Connected! Want me to discover the schema? I'll query metadata for schemas, tables, columns, and type keys. (yes / no)"
+
+**STOP and wait for the user's answer.**
+
+- **If the user says yes:** proceed to Step 6.
+- **If the user says no:** skip to Phase 3. The agent works without metadata but may need to ask more clarifying questions about table and column names.
 
 ### Step 6 — Run discovery queries
 
-If the user consents, run all discovery queries using `--csv` format:
+Run all discovery queries using `--csv` format:
 
 ```bash
 docker exec <container> psql -U <user> -d <database> -P pager=off --csv -c "<SQL>"
@@ -161,17 +177,25 @@ Always use fully-qualified schema names (e.g., `daana_dw.view_customer`).
 
 ### Execution Consent
 
-Before running a query, show the generated SQL and ask:
+<HARD-GATE>
+**You MUST ask the user for permission before executing any query. Do NOT run queries without explicit consent unless the user has previously chosen "yes, don't ask again".**
+</HARD-GATE>
+
+Before running a query, show the generated SQL and ask the user verbatim:
 
 > "Run this query?"
 > ```sql
 > SELECT ... FROM daana_dw.view_customer LIMIT 100;
 > ```
-> **yes / yes, don't ask again / no**
+> 1. yes
+> 2. yes, don't ask again
+> 3. no
 
-- **yes** — run this query, ask again next time.
-- **yes, don't ask again** — auto-execute all queries for the rest of the session.
-- **no** — don't run. Ask the user what to adjust.
+**STOP and wait for the user's answer.**
+
+- **1 (yes)** — run this query, ask again next time.
+- **2 (yes, don't ask again)** — auto-execute all queries for the rest of the session. Do not ask again.
+- **3 (no)** — don't run. Ask the user what to adjust.
 
 ### Execution Mechanics
 
