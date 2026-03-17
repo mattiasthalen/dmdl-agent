@@ -1,0 +1,6 @@
+[submodule "external/teach_claude_focal"]
+	path = external/teach_claude_focal
+	url = https://github.com/PatrikLager/teach_claude_focal.git
+[submodule "external/daana-cli"]
+	path = external/daana-cli
+	url = https://github.com/daana-code/daana-cli.git
