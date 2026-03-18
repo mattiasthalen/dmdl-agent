@@ -4,24 +4,51 @@
 
 ### Via connections.yaml
 
-Extract `host`, `port`, `user`, `database`, `password`, and `container` from the chosen profile.
+Extract `host`, `port`, `user`, `database`, `password`, and `sslmode` from the chosen profile.
 
-If `container` is not in the profile, try to resolve it automatically before asking the user:
+### psql detection
 
-1. Search for `docker-compose.yaml` or `docker-compose.yml` using the Glob tool (`**/docker-compose.{yaml,yml}`)
-2. If found, read it and look for a service whose container name, service name, or database configuration matches the connection profile (e.g., matching `host`, `database`, or `port`)
-3. If a match is found, use that container/service name
-4. If no match or no docker-compose file, then ask the user: "What's the Docker container name for this database?"
+Check if `psql` is available:
+
+1. Run `which psql` (Linux/macOS) or `where psql` (Windows) via the Bash tool
+2. If found, confirm with `psql --version` and proceed
+3. If not found, detect the platform and ask the user if you should install it:
+
+Call the `AskUserQuestion` tool (do NOT print the question as text):
+
+- Question: "psql is not installed. Want me to install it?"
+- Options: "Yes" / "No"
+
+If yes, detect the platform and run the appropriate command:
+
+| Platform | Command |
+|----------|---------|
+| macOS (Homebrew) | `brew install libpq && brew link --force libpq` |
+| Debian/Ubuntu | `sudo apt install postgresql-client` |
+| Fedora/RHEL | `sudo dnf install postgresql` |
+| Windows | `winget install PostgreSQL.PostgreSQL` |
+
+After install, re-check `which psql` / `where psql` to confirm.
+
+**Hard gate:** Cannot proceed without `psql` on PATH.
 
 ### Execution command
 
-All queries run via `docker exec`:
+All queries run via direct `psql`:
 
 ```bash
-docker exec <container> psql -U <user> -d <database> -P pager=off --csv -c "<SQL>"
+PGPASSWORD=<password> psql -h <host> -p <port> -U <user> -d <database> -P pager=off --csv -c "<SQL>"
 ```
 
-**Important:** Never use `-it` flags — Claude Code's Bash tool has no interactive TTY. Always include `-P pager=off --csv`.
+- `<password>`: from profile. If it uses `${VAR_NAME}` syntax, pass it through — the shell resolves it at execution time.
+- `<sslmode>`: if set in profile, add `sslmode=<value>` to the command via the `PGSSLMODE` env var: `PGSSLMODE=<sslmode> PGPASSWORD=<password> psql ...`
+- **Important:** Never use `-it` flags — Claude Code's Bash tool has no interactive TTY. Always include `-P pager=off --csv`.
+
+### Connectivity check
+
+```bash
+PGPASSWORD=<password> psql -h <host> -p <port> -U <user> -d <database> -P pager=off --csv -c "SELECT 1"
+```
 
 ## Bootstrap Query
 
