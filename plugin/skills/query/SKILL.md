@@ -34,10 +34,12 @@ Read `${CLAUDE_SKILL_DIR}/connections.md` for the connection profile schema.
 
 ### Step 1 — Look for connections.yaml
 
-**You MUST search for the connections file before asking any connection questions:**
+**You MUST search for the connections file before asking any connection questions.**
 
-```bash
-find . -maxdepth 3 -name "connections.yaml" -type f 2>/dev/null
+Use the Glob tool to search for the file:
+
+```
+pattern: "**/connections.yaml"
 ```
 
 If found, read the first match and parse the YAML profiles.
@@ -58,9 +60,6 @@ If found, read the first match and parse the YAML profiles.
 
 From the chosen profile, extract `host`, `port`, `user`, `database`, and `password`. Environment variable references (`${VAR_NAME}`) are passed through as-is — the shell resolves them at execution time.
 
-Ask the user for the **Docker container name** — this is not in connections.yaml:
-> "What's the Docker container name for this database?"
-
 ### Step 3 — No connections.yaml fallback
 
 If `connections.yaml` is not found:
@@ -68,13 +67,12 @@ If `connections.yaml` is not found:
 
 Then ask **one at a time:**
 
-1. **Container name** — "What's the name of your Postgres container?" (e.g., `daana-test-customerdb`)
-2. **Database user** — "Database user?" (e.g., `dev`)
-3. **Database name** — "Database name?" (e.g., `customerdb`)
+1. **Database user** — "Database user?" (e.g., `dev`)
+2. **Database name** — "Database name?" (e.g., `customerdb`)
 
 ### Step 4 — Dialect resolution
 
-After determining the connection type from the profile:
+After determining the connection type (from the profile, or ask the user if connecting manually):
 
 - Try to read `${CLAUDE_SKILL_DIR}/dialect-<type>.md` (e.g., `dialect-postgres.md`)
 - If found — use it for all connection, bootstrap, and query mechanics.
@@ -84,7 +82,11 @@ After determining the connection type from the profile:
 
   If transpiling — read `${CLAUDE_SKILL_DIR}/dialect-postgres.md` as reference.
 
-### Step 5 — Validate connectivity
+### Step 5 — Gather dialect-specific details
+
+The dialect file specifies what additional information is needed. For example, the PostgreSQL dialect requires a Docker container name. Ask the user for any details not already in the connection profile.
+
+### Step 6 — Validate connectivity
 
 Run the connectivity check command from the dialect file. If validation fails, report the error and ask the user to verify the details.
 
@@ -92,7 +94,7 @@ Run the connectivity check command from the dialect file. If validation fails, r
 
 Read `${CLAUDE_SKILL_DIR}/focal-framework.md` before proceeding.
 
-### Step 6 — Bootstrap consent
+### Step 7 — Bootstrap consent
 
 <HARD-GATE>
 **You MUST ask the user for permission before running the bootstrap query. Do NOT skip this step.**
@@ -105,10 +107,10 @@ After a successful connection, use `AskUserQuestion`:
 
 **STOP and wait for the user's answer.**
 
-- **If the user says yes:** proceed to Step 7.
+- **If the user says yes:** proceed to Step 8.
 - **If the user says no:** skip to Phase 3. The agent works without metadata but may need to ask more clarifying questions.
 
-### Step 7 — Run bootstrap query
+### Step 8 — Run bootstrap query
 
 Run the bootstrap query from the dialect file. Cache the entire result in memory for the session. This is your complete model — no further metadata queries are needed.
 
