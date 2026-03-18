@@ -16,6 +16,11 @@ if [ ! -f "$LOCKFILE" ]; then
   exit 1
 fi
 
+if ! jq empty "$LOCKFILE" 2>/dev/null; then
+  echo "Error: $LOCKFILE contains invalid JSON."
+  exit 1
+fi
+
 mkdir -p "$EXTERNAL_DIR"
 
 repo_count=$(jq '.repos | length' "$LOCKFILE")
@@ -25,6 +30,11 @@ for i in $(seq 0 $((repo_count - 1))); do
   url=$(jq -r ".repos[$i].url" "$LOCKFILE")
   commit=$(jq -r ".repos[$i].commit" "$LOCKFILE")
   target="$EXTERNAL_DIR/$name"
+
+  if [ "$name" = "null" ] || [ "$url" = "null" ] || [ "$commit" = "null" ]; then
+    echo "Error: repo entry $i is missing required fields (name, url, commit)."
+    exit 1
+  fi
 
   echo "--- $name ---"
 
@@ -37,9 +47,13 @@ for i in $(seq 0 $((repo_count - 1))); do
   fi
 
   echo "Checking out $commit..."
-  git -C "$target" checkout --quiet "$commit"
+  git -C "$target" checkout --quiet --detach "$commit"
 
   actual=$(git -C "$target" rev-parse HEAD)
+  if [ "$actual" != "$commit" ]; then
+    echo "Error: expected $commit but HEAD is $actual"
+    exit 1
+  fi
   echo "Pinned at: $actual"
   echo ""
 done
