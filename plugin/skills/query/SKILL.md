@@ -162,6 +162,39 @@ The agent has the full model cached from bootstrap. Match the user's question to
 
 If ambiguous, ask a clarifying question — never guess.
 
+### Time dimension — REQUIRED before building any query
+
+<HARD-GATE>
+**You MUST ask about the time dimension before building any query, unless the user has previously chosen "don't ask again" for both questions. Two sequential questions — ask one, wait for answer, then ask the next.**
+</HARD-GATE>
+
+**Question 1 — Latest or history?**
+
+Call the `AskUserQuestion` tool (do NOT print the question as text):
+
+- Question: "Do you want the latest values, or the full history of changes over time?"
+- Options: "Latest" / "Full history" / "Latest, don't ask again" / "History, don't ask again"
+
+**STOP and wait for the user's answer before asking Question 2.**
+
+- **Latest** — use Pattern 1 from query-patterns.md. Ask again next time.
+- **Full history** — use Pattern 2 (Temporal Alignment) from query-patterns.md. Ask again next time.
+- **Latest, don't ask again** — default to Pattern 1 for all future queries. Do not ask again.
+- **History, don't ask again** — default to Pattern 2 for all future queries. Do not ask again.
+
+**Question 2 — Cutoff date?**
+
+Call the `AskUserQuestion` tool (do NOT print the question as text):
+
+- Question: "Do you want data as of right now, or up to a specific cutoff date?"
+- Options: "Current (no cutoff)" / "Specific cutoff date" / "Current, don't ask again"
+
+**STOP and wait for the user's answer before building the query.**
+
+- **Current (no cutoff)** — no `eff_tmstp` filter. Ask again next time.
+- **Specific cutoff date** — ask the user for the date, then apply the cutoff modifier from query-patterns.md.
+- **Current, don't ask again** — default to no cutoff for all future queries. Do not ask again.
+
 ### Query patterns
 
 Build queries dynamically from the bootstrap data. Never hardcode TYPE_KEYs, table names, or column names. Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).
