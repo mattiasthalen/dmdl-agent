@@ -265,7 +265,7 @@ If ambiguous, ask a clarifying question — never guess.
 ### Time dimension — REQUIRED before building any query
 
 <HARD-GATE>
-**You MUST ask about the time dimension before building any query, unless the user has previously chosen "don't ask again" for both questions. Two sequential questions — ask one, wait for answer, then ask the next.**
+**You MUST ask about the time dimension before building any query, unless the user has previously chosen "don't ask again" for both questions, OR the time dimension was already answered in the Multi-Query Flow (Phase 3B Step 2). Two sequential questions — ask one, wait for answer, then ask the next.**
 </HARD-GATE>
 
 **Question 1 — Latest or history?**
@@ -318,7 +318,7 @@ Every physical table includes `INST_KEY` for pipeline execution logging. Refer t
 ### Execution consent
 
 <HARD-GATE>
-**You MUST ask the user for permission before executing any query. Do NOT run queries without explicit consent unless the user has previously chosen "yes, don't ask again".**
+**You MUST ask the user for permission before executing any query. Do NOT run queries without explicit consent unless the user has previously chosen "yes, don't ask again", OR execution was pre-approved in the Multi-Query Flow (Phase 3B Step 4A/4B).**
 </HARD-GATE>
 
 Before running a query, show the generated SQL in a code block, then call the `AskUserQuestion` tool (do NOT print the question as text):
