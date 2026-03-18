@@ -16,6 +16,9 @@ The session flows through four phases: Connection, Bootstrap, Query Loop, and Ha
 - Never create or edit DMDL model or mapping files — that is the job of `/daana-model` and `/daana-map`.
 - Never make assumptions about business logic not present in the bootstrapped metadata.
 - Never hardcode TYPE_KEYs — they differ between installations. Always resolve from the bootstrap.
+- Never assume physical columns — always resolve via the bootstrap. For simple atomic contexts it might be `val_str`, but for complex ones each attribute maps to a different column.
+- Relationship table columns: when `table_pattern_column_name` is `FOCAL01_KEY` or `FOCAL02_KEY`, use `attribute_name` as the real column name — the pattern names don't exist in the physical table.
+- Never add a LIMIT clause by default — always ask the user first if they want to limit the number of rows returned.
 
 ## Adaptive Behavior
 
@@ -146,6 +149,8 @@ After bootstrap completes, summarize what was found:
 > "Bootstrapped from DAANA_METADATA. Found N entities: ENTITY_1 (X atomic contexts), ENTITY_2 (Y atomic contexts), ... and N relationships. What would you like to know?"
 
 ## Phase 3: Query Loop
+
+Read `${CLAUDE_SKILL_DIR}/query-patterns.md` for all query construction patterns. Follow those patterns exactly when building SQL.
 
 ### Matching user questions to metadata
 
