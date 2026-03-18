@@ -197,59 +197,12 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 ### Query patterns
 
-Build queries dynamically from the bootstrap data. Never hardcode TYPE_KEYs, table names, or column names. Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).
+Build queries dynamically from the bootstrap data following the patterns in `${CLAUDE_SKILL_DIR}/query-patterns.md`. Key rules:
 
-#### Pattern 1: Single attribute (latest)
-
-```sql
-SELECT [entity]_key, [physical_column] AS [attribute_name]
-FROM daana_dw.[descriptor_table]
-WHERE type_key = [atom_contx_key] AND row_st = 'Y'
-```
-
-#### Pattern 2: Multi-attribute pivot (latest)
-
-```sql
-SELECT
-  [entity]_key,
-  MAX(CASE WHEN type_key = [key1] THEN [physical_column1] END) AS [attr1],
-  MAX(CASE WHEN type_key = [key2] THEN [physical_column2] END) AS [attr2]
-FROM daana_dw.[descriptor_table]
-WHERE type_key IN ([key1], [key2]) AND row_st = 'Y'
-GROUP BY [entity]_key
-```
-
-#### Pattern 3: Full history (single attribute)
-
-No `ROW_ST` filter — return all rows to show the complete timeline:
-
-```sql
-SELECT
-  [entity]_key, type_key, eff_tmstp, ver_tmstp, row_st,
-  [physical_column] AS [attribute_name]
-FROM daana_dw.[descriptor_table]
-WHERE type_key = [atom_contx_key]
-ORDER BY [entity]_key, eff_tmstp, ver_tmstp
-```
-
-#### Pattern 4: Temporal alignment (multi-attribute history)
-
-Three-stage CTE pattern for flat pivoted history across multiple attributes that change independently.
-
-**Stage 1:** UNION ALL atomic contexts, carry-forward `eff_tmstp` per attribute via window function, deduplicate with RANK subquery. Use the QUALIFY alternative and carry-forward pattern from the dialect file.
-
-**Stage 2:** Per-attribute CTEs extracting values from stage 1.
-
-**Stage 3:** Final SELECT joining all CTEs on entity key + carry-forward timestamps.
-
-#### Relationship queries
-
-Join relationship tables (X tables) to descriptor tables via entity keys. Use `attribute_name` from bootstrap as the physical column name (not `FOCAL01_KEY`/`FOCAL02_KEY`).
-
-### ROW_ST filtering rules
-
-- **Latest / point-in-time:** Filter `row_st = 'Y'`. Use RANK window for latest.
-- **Full history:** Do NOT filter on `row_st`. Need both 'Y' and 'N' rows.
+- Never hardcode TYPE_KEYs, table names, or column names — always resolve from the bootstrap.
+- Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).
+- For relationship tables, use `attribute_name` as the physical column — not `FOCAL01_KEY`/`FOCAL02_KEY`.
+- Use the dialect file for platform-specific syntax (e.g., QUALIFY alternative, window frames).
 
 ### Lineage tracing
 
