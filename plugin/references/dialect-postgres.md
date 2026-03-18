@@ -18,19 +18,25 @@ docker exec <container> psql -U <user> -d <database> -P pager=off --csv -c "<SQL
 
 ## Bootstrap Query
 
-PostgreSQL's `f_focal_read` returns `table_pattern_column_name` directly — no join to `logical_physical_x` or `tbl_ptrn_col_nm` needed.
+Join `f_focal_read` with `logical_physical_x` and `tbl_ptrn_col_nm` to resolve the physical column for each attribute:
 
 ```sql
 SELECT
-  focal_name,
-  descriptor_concept_name,
-  atomic_context_name,
-  atom_contx_key,
-  attribute_name,
-  table_pattern_column_name
-FROM daana_metadata.f_focal_read('9999-12-31')
-WHERE focal_physical_schema = 'DAANA_DW'
-ORDER BY focal_name, descriptor_concept_name, atomic_context_name
+  fr.focal_name,
+  fr.focal_physical_schema,
+  fr.descriptor_concept_name,
+  fr.atomic_context_name,
+  fr.atom_contx_key,
+  fr.attribute_name,
+  fr.atr_key,
+  tcn.val_str AS physical_column
+FROM daana_metadata.f_focal_read('9999-12-31') fr
+LEFT JOIN daana_metadata.logical_physical_x lp
+  ON lp.atr_key = fr.atr_key AND lp.atom_contx_key = fr.atom_contx_key AND lp.row_st = 'Y'
+LEFT JOIN daana_metadata.tbl_ptrn_col_nm tcn
+  ON lp.tbl_ptrn_col_key = tcn.tbl_ptrn_col_key AND tcn.row_st = 'Y'
+WHERE fr.focal_physical_schema = 'DAANA_DW'
+ORDER BY fr.focal_name, fr.descriptor_concept_name, fr.atomic_context_name
 ```
 
 **Note:** `focal_physical_schema` is uppercase (`'DAANA_DW'`, not `'daana_dw'`).
@@ -88,4 +94,4 @@ CAST('2024-01-01' AS TIMESTAMP)
 
 ## Relationship table columns
 
-In PostgreSQL Focal installations, relationship table columns use `ATTRIBUTE_NAME` from the bootstrap as the physical column name — not `FOCAL01_KEY` / `FOCAL02_KEY` pattern names. When `table_pattern_column_name` returns `FOCAL01_KEY` or `FOCAL02_KEY`, use the corresponding `attribute_name` value instead.
+In PostgreSQL Focal installations, relationship table columns use `attribute_name` from the bootstrap as the physical column name — not `FOCAL01_KEY` / `FOCAL02_KEY` pattern names. When `physical_column` returns `FOCAL01_KEY` or `FOCAL02_KEY`, use the corresponding `attribute_name` value instead.
