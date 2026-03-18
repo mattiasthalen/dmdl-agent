@@ -37,6 +37,16 @@ Each skill can hand you over to the next logical step when it completes.
 - [Daana CLI](https://docs.daana.dev) — Daana CLI documentation
 - [DMDL Specification](https://docs.daana.dev/dmdl) — DMDL language reference
 
+## Development Setup
+
+This project references private repos for development. To clone them locally:
+
+```bash
+./scripts/setup-external.sh
+```
+
+This reads `external.lock` and clones the pinned versions into `external/` (gitignored). Requires `jq` and SSH access to the referenced repos.
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
