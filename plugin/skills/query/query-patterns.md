@@ -274,6 +274,210 @@ The agent has everything it needs from the bootstrap result:
 
 The agent should generate all of these dynamically from the bootstrap data — never hardcode type_keys or column names.
 
+## Pattern 3: Multi-Entity History
+
+When the user wants a **history view that spans multiple entities connected through relationships**, the agent must combine independent temporal timelines from different tables — each with its own key — into one golden timeline.
+
+This extends Pattern 2 (single-entity history) with a modular approach: each entity and relationship is resolved independently, then composed.
+
+### When to use this pattern
+
+- The user asks for history across entities (e.g. "order line revenue history with product names")
+- The query involves relationship tables that connect the entities
+- The user needs to see how cross-entity data evolved over time
+
+### Architecture: Three modules
+
+| Module | Source | Key | Produces |
+|--------|--------|-----|----------|
+| **Anchor descriptors** | `[ANCHOR]_DESC` | `[ANCHOR]_KEY` | Per-attribute CTEs (values from the anchor entity) |
+| **Relationship** | `[ANCHOR]_[RELATED]_X` | `[ANCHOR]_KEY` + `[RELATED]_KEY` | CTE carrying forward the related entity's key |
+| **Related descriptors** | `[RELATED]_DESC` | `[RELATED]_KEY` | Per-attribute CTEs (values from the related entity) |
+
+The **anchor entity** is the primary entity the query is about — the one whose key defines the golden timeline. The agent infers this from the user's question (e.g. "order line revenue" → anchor is ORDER_LINE).
+
+### Module 1 + 2: Combined twine (anchor descriptors + relationship)
+
+The anchor's descriptor attributes and the relationship share the same anchor key, so they merge into **one twine**. The relationship's related-entity key (`[RELATED]_KEY`) is included as a value column to be carried forward alongside the descriptor values.
+
+```sql
+WITH twine AS (
+  -- Anchor descriptor attribute 1
+  SELECT [ANCHOR]_KEY, type_key, eff_tmstp, ver_tmstp, row_st,
+         [physical_column_1], CAST(NULL AS VARCHAR) AS [RELATED]_KEY,
+         '[ATOMIC_CONTEXT_NAME_1]' AS timeline
+  FROM [physical_schema].[anchor_desc_table]
+  WHERE type_key = [key1]
+  UNION ALL
+  -- Anchor descriptor attribute 2
+  SELECT [ANCHOR]_KEY, type_key, eff_tmstp, ver_tmstp, row_st,
+         [physical_column_2], NULL,
+         '[ATOMIC_CONTEXT_NAME_2]' AS timeline
+  FROM [physical_schema].[anchor_desc_table]
+  WHERE type_key = [key2]
+  -- ... one UNION ALL per anchor atomic context ...
+  UNION ALL
+  -- Relationship (both keys are values — the combination represents an event)
+  SELECT [ANCHOR]_KEY, type_key, eff_tmstp, ver_tmstp, row_st,
+         CAST(NULL AS NUMERIC) AS [physical_column], [RELATED]_KEY,
+         '[RELATIONSHIP_NAME]' AS timeline
+  FROM [physical_schema].[relationship_table]
+  WHERE type_key = [rel_key]
+)
+```
+
+**Column alignment:** The UNION ALL requires consistent columns. Descriptor rows have NULL for `[RELATED]_KEY`; relationship rows have NULL for value columns. Cast NULLs to match the column types.
+
+Then apply the standard carry-forward and deduplication stages from Pattern 2:
+
+```sql
+, in_effect AS (
+  SELECT
+    [ANCHOR]_KEY, type_key, eff_tmstp, ver_tmstp, row_st,
+    [physical_column], [RELATED]_KEY,
+    -- Carry-forward per anchor descriptor attribute
+    MAX(CASE WHEN timeline = '[ATOMIC_CONTEXT_NAME_1]' THEN eff_tmstp END)
+      OVER (PARTITION BY [ANCHOR]_KEY ORDER BY eff_tmstp
+            RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      AS eff_tmstp_[ATOMIC_CONTEXT_NAME_1],
+    MAX(CASE WHEN timeline = '[ATOMIC_CONTEXT_NAME_2]' THEN eff_tmstp END)
+      OVER (PARTITION BY [ANCHOR]_KEY ORDER BY eff_tmstp
+            RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      AS eff_tmstp_[ATOMIC_CONTEXT_NAME_2],
+    -- ... one carry-forward column per anchor atomic context ...
+    -- Carry-forward for the relationship
+    MAX(CASE WHEN timeline = '[RELATIONSHIP_NAME]' THEN eff_tmstp END)
+      OVER (PARTITION BY [ANCHOR]_KEY ORDER BY eff_tmstp
+            RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      AS eff_tmstp_[RELATIONSHIP_NAME],
+    RANK() OVER (
+      PARTITION BY [ANCHOR]_KEY, eff_tmstp
+      ORDER BY eff_tmstp DESC
+    ) AS rn
+  FROM twine
+)
+
+, filtered_in_effect AS (
+  SELECT * FROM in_effect WHERE rn = 1
+)
+```
+
+Per-attribute CTEs for anchor descriptors follow the standard Pattern 2 approach. The relationship CTE extracts the carried-forward related-entity key:
+
+```sql
+-- Anchor descriptor CTEs (standard)
+, cte_[ATOMIC_CONTEXT_NAME_1] AS (
+  SELECT [ANCHOR]_KEY, eff_tmstp,
+    CASE WHEN row_st = 'Y' THEN [physical_column] ELSE NULL END AS [attribute_name]
+  FROM filtered_in_effect
+  WHERE type_key = [key1]
+)
+-- ... one CTE per anchor atomic context ...
+
+-- Relationship CTE (carries forward the related entity key)
+, cte_[RELATIONSHIP_NAME] AS (
+  SELECT [ANCHOR]_KEY, eff_tmstp,
+    CASE WHEN row_st = 'Y' THEN [RELATED]_KEY ELSE NULL END AS [RELATED]_KEY
+  FROM filtered_in_effect
+  WHERE type_key = [rel_key]
+)
+```
+
+### Module 3: Related entity history (self-contained)
+
+The related entity runs its own independent history pattern, keyed on `[RELATED]_KEY`. This is a standard Pattern 2 applied to the related entity's descriptor table:
+
+```sql
+, related_twine AS (
+  SELECT [RELATED]_KEY, type_key, eff_tmstp, ver_tmstp, row_st,
+         [physical_column],
+         '[RELATED_ATOMIC_CONTEXT_NAME]' AS timeline
+  FROM [physical_schema].[related_desc_table]
+  WHERE type_key = [related_key]
+  -- ... UNION ALL for additional related attributes ...
+)
+, related_in_effect AS (
+  SELECT
+    [RELATED]_KEY, type_key, eff_tmstp, ver_tmstp, row_st, [physical_column],
+    RANK() OVER (PARTITION BY [RELATED]_KEY, eff_tmstp ORDER BY eff_tmstp DESC) AS rn
+  FROM related_twine
+)
+, related_filtered AS (
+  SELECT * FROM related_in_effect WHERE rn = 1
+)
+, cte_[RELATED_ATOMIC_CONTEXT_NAME] AS (
+  SELECT [RELATED]_KEY, eff_tmstp,
+    CASE WHEN row_st = 'Y' THEN [physical_column] ELSE NULL END AS [related_attribute_name]
+  FROM related_filtered
+  WHERE type_key = [related_key]
+)
+```
+
+### Final join: Composing the modules
+
+Join the anchor's golden timeline to its own CTEs using carry-forward timestamps (standard Pattern 2), then bridge to the related entity via a **point-in-time LATERAL join**:
+
+```sql
+SELECT DISTINCT
+  fie.[ANCHOR]_KEY,
+  fie.eff_tmstp,
+  cte1.[attribute_name_1],
+  cte2.[attribute_name_2],
+  -- ... anchor attributes ...
+  cte_rel.[RELATED]_KEY,
+  related_pn.[related_attribute_name]
+FROM filtered_in_effect fie
+-- Anchor descriptor CTEs (standard carry-forward join)
+LEFT JOIN cte_[ATOMIC_CONTEXT_NAME_1] cte1
+  ON fie.[ANCHOR]_KEY = cte1.[ANCHOR]_KEY
+  AND fie.eff_tmstp_[ATOMIC_CONTEXT_NAME_1] = cte1.eff_tmstp
+LEFT JOIN cte_[ATOMIC_CONTEXT_NAME_2] cte2
+  ON fie.[ANCHOR]_KEY = cte2.[ANCHOR]_KEY
+  AND fie.eff_tmstp_[ATOMIC_CONTEXT_NAME_2] = cte2.eff_tmstp
+-- ... one LEFT JOIN per anchor atomic context ...
+-- Relationship CTE (carry-forward join — resolves which related entity was linked)
+LEFT JOIN cte_[RELATIONSHIP_NAME] cte_rel
+  ON fie.[ANCHOR]_KEY = cte_rel.[ANCHOR]_KEY
+  AND fie.eff_tmstp_[RELATIONSHIP_NAME] = cte_rel.eff_tmstp
+-- Related entity attributes (point-in-time lookup via LATERAL)
+LEFT JOIN LATERAL (
+  SELECT [related_attribute_name]
+  FROM cte_[RELATED_ATOMIC_CONTEXT_NAME]
+  WHERE [RELATED]_KEY = cte_rel.[RELATED]_KEY
+    AND eff_tmstp <= fie.eff_tmstp
+  ORDER BY eff_tmstp DESC
+  LIMIT 1
+) related_pn ON TRUE
+```
+
+**How the LATERAL join works:** At each row on the anchor's golden timeline, the carry-forward has already resolved *which* related entity is linked (via `cte_rel.[RELATED]_KEY`). The LATERAL subquery then looks into the related entity's own history to find the attribute value that was in effect at that moment — the latest `eff_tmstp` that is `<=` the golden timeline's timestamp.
+
+### Cutoff date modifier
+
+Add `AND eff_tmstp <= '<cutoff>'` to:
+- Each UNION ALL member in the anchor `twine`
+- Each UNION ALL member in the `related_twine`
+- The LATERAL subquery's `WHERE` clause (already filtered by `<= fie.eff_tmstp`, which will be bounded by the cutoff)
+
+### Fidelity note
+
+This pattern captures events from the **anchor entity's perspective**. If a related entity's attribute changes (e.g. product name updated) but nothing changes on the anchor side, that event will **not** appear as a new row on the golden timeline — the LATERAL lookup will resolve the updated name at the next anchor event.
+
+For most analytical queries (revenue aggregation, status tracking), this is the correct behavior — the related entity's attributes serve as labels resolved at lookup time. If full fidelity is needed (a new timeline row for every change in any connected entity), the related entity's events must be projected onto the anchor's timeline by including them in the anchor's twine — but this requires resolving the relationship first, creating a two-pass approach.
+
+### Multiple relationships
+
+If the query involves multiple relationship tables (e.g. ORDER → CUSTOMER and ORDER → EMPLOYEE), add each relationship as an additional UNION ALL member in the anchor twine with its own timeline label, carry-forward column, and CTE. Each related entity gets its own independent history module and LATERAL join in the final SELECT.
+
+### Building this from the bootstrap
+
+1. **Identify the anchor entity** from the user's question
+2. **Anchor twine:** UNION ALL members from the anchor's `descriptor_concept_name` (descriptor tables) + relationship tables where the anchor is the FOCAL01_KEY side. Include the related entity's key column as a value in the UNION ALL.
+3. **Carry-forward:** One column per anchor atomic context + one per relationship
+4. **Per-attribute CTEs:** Standard for descriptors; relationship CTE extracts the related key
+5. **Related entity modules:** For each related entity, run a standard Pattern 2 history on its descriptor table
+6. **Final join:** Anchor CTEs via carry-forward timestamps; related entity CTEs via LATERAL point-in-time lookup using the carried-forward related key
+
 ## Relationship Queries
 
 ### Detecting relationships from bootstrap
