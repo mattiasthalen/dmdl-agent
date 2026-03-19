@@ -78,6 +78,31 @@ For atomic contexts with **multiple attributes in one type_key** (e.g., ride dur
   MAX(CASE WHEN type_key = [key] THEN end_tmstp END) AS [end_tmstp]
 ```
 
+### Relationship tables in latest queries
+
+Relationship tables follow the **same RANK pattern** as descriptor tables. Relationships are temporal — they can change over time — so a direct `row_st = 'Y'` filter without RANK would return multiple rows if the relationship changed at different timestamps. Always resolve the latest active relationship first in its own CTE:
+
+```sql
+, latest_relationship AS (
+  SELECT [entity_01]_key, [entity_02]_key
+  FROM (
+    SELECT
+      [entity_01]_key, [entity_02]_key, row_st,
+      RANK() OVER (
+        PARTITION BY [entity_01]_key, [entity_02]_key
+        ORDER BY eff_tmstp DESC, ver_tmstp DESC
+      ) AS nbr
+    FROM [schema].[relationship_table]
+    WHERE type_key = [rel_atom_contx_key]
+      -- With cutoff date, add:
+      -- AND eff_tmstp <= '<cutoff>'
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+)
+```
+
+Then join to this CTE (not directly to the relationship table) when combining with descriptor data.
+
 ## Pattern 2: History — Temporal Alignment
 
 When the user wants a **flat, pivoted history** across **multiple attributes**, the agent must solve the **temporal alignment problem**. Each attribute changes independently at different `eff_tmstp` values, so a simple GROUP BY pivot won't work — it would show NULLs for attributes that didn't change at a given timestamp.

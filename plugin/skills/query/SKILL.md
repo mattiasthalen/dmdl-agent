@@ -277,10 +277,10 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 **STOP and wait for the user's answer before asking Question 2.**
 
-- **Latest** — use Pattern 1 from query-patterns.md. Ask again next time.
-- **Full history** — use Pattern 2 (Temporal Alignment) from query-patterns.md. Ask again next time.
+- **Latest** — use Pattern 1 from query-patterns.md (relationships use the same RANK CTE pattern). Ask again next time.
+- **Full history** — use Pattern 2 (single entity) or Pattern 3 (cross-entity) from query-patterns.md. Ask again next time.
 - **Latest, don't ask again** — default to Pattern 1 for all future queries. Do not ask again.
-- **History, don't ask again** — default to Pattern 2 for all future queries. Do not ask again.
+- **History, don't ask again** — default to Pattern 2 or 3 (based on whether cross-entity) for all future queries. Do not ask again.
 
 **Question 2 — Cutoff date?**
 

@@ -3,7 +3,7 @@
     {
       "name": "teach_claude_focal",
       "url": "git@github.com:PatrikLager/teach_claude_focal.git",
-      "commit": "d49cb259e02de9f989298902b95b37a73ab7edf3"
+      "commit": "280f8e457afc82bf00af864a9cdd00bae745ecc9"
     },
     {
       "name": "daana-cli",
