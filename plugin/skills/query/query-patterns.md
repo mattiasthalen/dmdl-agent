@@ -736,3 +736,34 @@ ORDER BY total_amount DESC
 4. **Relationship columns used `attribute_name`, not `table_pattern_column_name`.** The agent detected `FOCAL01_KEY`/`FOCAL02_KEY` and switched to attribute names.
 5. **Every table uses the same RANK pattern.** Descriptors and relationship tables both use `RANK() OVER (...) + nbr = 1 + row_st = 'Y'` in latest queries — relationships are temporal and must be resolved to their latest active state, not just filtered by `row_st = 'Y'`.
 6. **The agent asked clarifying questions** when "total" could mean different things.
+
+---
+
+## Workaround: Fixing relationship EFF_TMSTP on PostgreSQL (daana-cli <= 0.5.18)
+
+> **Temporary note.** As of daana-cli 0.5.18, the standard (non-focalc) installation does not apply `entity_effective_timestamp_expression` to relationship tables — they always receive `CURRENT_TIMESTAMP`. The experimental `--use-focalc` flag fixes this but does not fully populate the metadata layer. Until this is resolved in a future release, the workaround below can be used to patch relationship timestamps after execution.
+
+**Prerequisites:**
+- Source tables must have an `updated_at` column (or equivalent timestamp)
+- The installation uses `allow_multiple_identifiers: false`, so entity keys in the DW match the natural business keys from the source
+
+**Pattern:** For each relationship table, join back to the source table using the natural key and update `EFF_TMSTP`:
+
+```sql
+-- Relationship sourced from a table that has its own updated_at
+UPDATE daana_dw.[RELATIONSHIP_TABLE] rx
+SET eff_tmstp = src.updated_at
+FROM [source_schema].[source_table] src
+WHERE rx.[FOCAL01_KEY] = CAST(src.[source_pk] AS VARCHAR);
+
+-- Relationship sourced from a junction table with a composite key
+UPDATE daana_dw.[RELATIONSHIP_TABLE] rx
+SET eff_tmstp = parent.updated_at
+FROM [source_schema].[parent_table] parent
+WHERE CAST(parent.[parent_pk] AS VARCHAR) = SPLIT_PART(rx.[FOCAL01_KEY], '|', 1);
+
+-- Relationship where all rows share a fixed date (static reference data)
+UPDATE daana_dw.[RELATIONSHIP_TABLE] SET eff_tmstp = '[fixed_date]';
+```
+
+**Important:** This is a post-execution patch — it must be re-applied after every `daana-cli execute`. It does not survive re-execution.
