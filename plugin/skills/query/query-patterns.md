@@ -303,23 +303,55 @@ SELECT ride_key, station_key FROM daana_dw.ride_station_x WHERE type_key = 16
 SELECT FOCAL01_KEY, FOCAL02_KEY FROM daana_dw.ride_station_x WHERE type_key = 16
 ```
 
-### Joining relationship tables to descriptor tables
+### Building a relationship query
 
-Use the metadata-resolved column names to join:
+Relationship tables are temporal just like descriptor tables. In **latest** queries, always resolve relationships using the RANK pattern first, then join the result to descriptor CTEs:
 
 ```sql
+-- Step 1: Resolve the latest active relationship
+WITH latest_rel AS (
+  SELECT [entity_01]_key, [entity_02]_key
+  FROM (
+    SELECT
+      [entity_01]_key, [entity_02]_key, row_st,
+      RANK() OVER (
+        PARTITION BY [entity_01]_key, [entity_02]_key
+        ORDER BY eff_tmstp DESC, ver_tmstp DESC
+      ) AS nbr
+    FROM [schema].[relationship_table]
+    WHERE type_key = [rel_atom_contx_key]
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+),
+-- Step 2: Resolve the latest descriptor value (same RANK pattern)
+latest_desc AS (
+  SELECT
+    [entity]_key,
+    MAX(CASE WHEN type_key = [desc_atom_contx_key] THEN [physical_column] END) AS [attribute_name]
+  FROM (
+    SELECT
+      [entity]_key, type_key, row_st, [physical_column],
+      RANK() OVER (
+        PARTITION BY [entity]_key, type_key
+        ORDER BY eff_tmstp DESC, ver_tmstp DESC
+      ) AS nbr
+    FROM [schema].[entity_desc_table]
+    WHERE type_key = [desc_atom_contx_key]
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+  GROUP BY [entity]_key
+)
+-- Step 3: Join the resolved CTEs
 SELECT
-  sd.[physical_column] AS [attribute_name],
+  ld.[attribute_name],
   COUNT(*) AS ride_count
-FROM [schema].[relationship_table] rx
-JOIN [schema].[entity_desc_table] sd
-  ON rx.[attribute_name_focal02] = sd.[entity]_key
-  AND sd.type_key = [desc_atom_contx_key] AND sd.row_st = 'Y'
-WHERE rx.type_key = [rel_atom_contx_key] AND rx.row_st = 'Y'
-GROUP BY sd.[physical_column]
+FROM latest_rel lr
+JOIN latest_desc ld
+  ON lr.[entity_02]_key = ld.[entity]_key
+GROUP BY ld.[attribute_name]
 ```
 
-**Important:** When joining to descriptor tables, use the descriptor table's own entity key column (e.g., `station_key` in `station_desc`), not the generic pattern column name.
+**Important:** The physical column names in relationship tables (`FOCAL01_KEY`, `FOCAL02_KEY`) are generic pattern columns. The metadata maps them to logical entity key names. When joining to descriptor tables, use the descriptor table's own entity key column (e.g., `station_key` in `station_desc`), not the generic pattern column name.
 
 ## Bootstrap Fallback
 
