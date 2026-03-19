@@ -677,19 +677,54 @@ Since these are relationship columns, use `attribute_name` as the physical colum
 
 #### Step 4: Build the query
 
+Every table — descriptors AND relationships — uses the same RANK pattern for latest queries:
+
 ```sql
+WITH invoice_amount AS (
+  SELECT
+    invoice_key,
+    MAX(CASE WHEN type_key = 42 THEN val_num END) AS amount
+  FROM (
+    SELECT invoice_key, type_key, row_st, val_num,
+      RANK() OVER (PARTITION BY invoice_key, type_key ORDER BY eff_tmstp DESC, ver_tmstp DESC) AS nbr
+    FROM daana_dw.invoice_desc
+    WHERE type_key = 42
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+  GROUP BY invoice_key
+),
+invoice_supplier AS (
+  SELECT invoice_key, supplier_key
+  FROM (
+    SELECT invoice_key, supplier_key, row_st,
+      RANK() OVER (PARTITION BY invoice_key, supplier_key ORDER BY eff_tmstp DESC, ver_tmstp DESC) AS nbr
+    FROM daana_dw.invoice_supplier_x
+    WHERE type_key = 50
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+),
+supplier_name AS (
+  SELECT
+    supplier_key,
+    MAX(CASE WHEN type_key = 61 THEN val_str END) AS supplier_name
+  FROM (
+    SELECT supplier_key, type_key, row_st, val_str,
+      RANK() OVER (PARTITION BY supplier_key, type_key ORDER BY eff_tmstp DESC, ver_tmstp DESC) AS nbr
+    FROM daana_dw.supplier_desc
+    WHERE type_key = 61
+  ) a
+  WHERE nbr = 1 AND row_st = 'Y'
+  GROUP BY supplier_key
+)
 SELECT
-  sd.val_str AS supplier_name,
-  SUM(id.val_num) AS total_amount
-FROM daana_dw.invoice_supplier_x rx
-JOIN daana_dw.invoice_desc id
-  ON rx.invoice_key = id.invoice_key
-  AND id.type_key = 42 AND id.row_st = 'Y'
-JOIN daana_dw.supplier_desc sd
-  ON rx.supplier_key = sd.supplier_key
-  AND sd.type_key = 61 AND sd.row_st = 'Y'
-WHERE rx.type_key = 50 AND rx.row_st = 'Y'
-GROUP BY sd.val_str
+  sn.supplier_name,
+  SUM(ia.amount) AS total_amount
+FROM invoice_amount ia
+JOIN invoice_supplier isx
+  ON ia.invoice_key = isx.invoice_key
+JOIN supplier_name sn
+  ON isx.supplier_key = sn.supplier_key
+GROUP BY sn.supplier_name
 ORDER BY total_amount DESC
 ```
 
@@ -699,4 +734,5 @@ ORDER BY total_amount DESC
 2. **Entity names, attribute names, and column names were all different from any prior example.** The process works regardless of domain.
 3. **The agent matched natural language to metadata names.** "amount" → `INVOICE_AMOUNT`, "supplier" → `SUPPLIER_NAME`.
 4. **Relationship columns used `attribute_name`, not `table_pattern_column_name`.** The agent detected `FOCAL01_KEY`/`FOCAL02_KEY` and switched to attribute names.
-5. **The agent asked clarifying questions** when "total" could mean different things.
+5. **Every table uses the same RANK pattern.** Descriptors and relationship tables both use `RANK() OVER (...) + nbr = 1 + row_st = 'Y'` in latest queries — relationships are temporal and must be resolved to their latest active state, not just filtered by `row_st = 'Y'`.
+6. **The agent asked clarifying questions** when "total" could mean different things.
