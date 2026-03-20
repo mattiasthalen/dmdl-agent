@@ -2,3 +2,23 @@
 .claude/worktrees
 .worktrees/
 external/
+
+# IDE
+.idea
+.vscode
+
+# Claude Code sandbox
+.claude/agents
+.claude/commands
+.claude/skills
+
+# Sandbox artifacts
+.bash_profile
+.bashrc
+.gitconfig
+.gitmodules
+.profile
+.zprofile
+.zshrc
+.ripgreprc
+.mcp.json
