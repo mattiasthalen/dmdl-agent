@@ -33,7 +33,7 @@ Detect the user's knowledge level and adjust:
 
 ## Phase 1: Connection
 
-Read `${CLAUDE_SKILL_DIR}/connections.md` for the connection profile schema.
+Read `${CLAUDE_SKILL_DIR}/references/connections.md` for the connection profile schema.
 
 ### Step 1 — Look for connections.yaml
 
@@ -81,13 +81,13 @@ Then ask **one at a time:**
 
 After determining the connection type (from the profile, or ask the user if connecting manually):
 
-- Try to read `${CLAUDE_SKILL_DIR}/dialect-<type>.md` (e.g., `dialect-postgres.md`)
+- Try to read `${CLAUDE_SKILL_DIR}/references/dialect-<type>.md` (e.g., `dialect-postgres.md`)
 - If found — use it for all connection, bootstrap, and query mechanics.
 - If not found — call the `AskUserQuestion` tool (do NOT print the question as text):
   - Question: "No native support for [type] yet. I can try translating from PostgreSQL patterns, but results may need tweaking. Want me to try?"
   - Options: "Yes, try transpiling" / "No, cancel"
 
-  If transpiling — read `${CLAUDE_SKILL_DIR}/dialect-postgres.md` as reference.
+  If transpiling — read `${CLAUDE_SKILL_DIR}/references/dialect-postgres.md` as reference.
 
 ### Step 5 — Validate connectivity
 
@@ -95,7 +95,7 @@ Run the connectivity check command from the dialect file. If validation fails, r
 
 ## Phase 2: Bootstrap
 
-Read `${CLAUDE_SKILL_DIR}/focal-framework.md` before proceeding.
+Read `${CLAUDE_SKILL_DIR}/references/focal-framework.md` and `${CLAUDE_SKILL_DIR}/references/bootstrap.md` before proceeding.
 
 ### Step 6 — Bootstrap consent
 
@@ -115,7 +115,7 @@ After a successful connection, you MUST call the `AskUserQuestion` tool (do NOT 
 
 ### Step 7 — Run bootstrap query
 
-Run the bootstrap query from the dialect file. Cache the entire result in memory for the session. This is your complete model — no further metadata queries are needed.
+Run the bootstrap query from `${CLAUDE_SKILL_DIR}/references/bootstrap.md`. Re-run the bootstrap every time — even if you already ran it earlier in this session. Never reuse previous bootstrap results. Cache the entire result in memory for the session.
 
 ### Bootstrap interpretation
 
@@ -228,7 +228,7 @@ Each subagent prompt MUST include all of the following — the subagent has no o
 3. **Bootstrap data:** The full cached bootstrap result, serialized as a markdown table or CSV block.
 4. **Connection details:** Host, port, user, database, password (env var reference), sslmode.
 5. **Dialect instructions:** The full contents of the dialect file (e.g., `dialect-postgres.md`) — execution command, statement timeout, syntax rules.
-6. **Query patterns:** The full contents of `query-patterns.md`.
+6. **Query patterns:** The full contents of `ad-hoc-query-agent.md`.
 7. **Time dimension choices:** The pre-answered latest/history and cutoff date decisions from Step 2.
 8. **Execution consent:** "Execution is pre-approved. Execute the query without asking."
 9. **The question:** The single question this subagent must answer.
@@ -250,7 +250,7 @@ After all results are presented, return to the normal Phase 3 query loop for fur
 
 ## Phase 3: Query Loop
 
-Read `${CLAUDE_SKILL_DIR}/query-patterns.md` for all query construction patterns. Follow those patterns exactly when building SQL.
+Read `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md` for all query construction patterns. Follow those patterns exactly when building SQL.
 
 ### Matching user questions to metadata
 
@@ -277,8 +277,8 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 **STOP and wait for the user's answer before asking Question 2.**
 
-- **Latest** — use Pattern 1 from query-patterns.md (relationships use the same RANK CTE pattern). Ask again next time.
-- **Full history** — use Pattern 2 (single entity) or Pattern 3 (cross-entity) from query-patterns.md. Ask again next time.
+- **Latest** — use Pattern 1 from ad-hoc-query-agent.md (relationships use the same RANK CTE pattern). Ask again next time.
+- **Full history** — use Pattern 2 (single entity) or Pattern 3 (cross-entity) from ad-hoc-query-agent.md. Ask again next time.
 - **Latest, don't ask again** — default to Pattern 1 for all future queries. Do not ask again.
 - **History, don't ask again** — default to Pattern 2 or 3 (based on whether cross-entity) for all future queries. Do not ask again.
 
@@ -292,12 +292,12 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 **STOP and wait for the user's answer before building the query.**
 
 - **Current (no cutoff)** — no `eff_tmstp` filter. Ask again next time.
-- **Specific cutoff date** — ask the user for the date, then apply the cutoff modifier from query-patterns.md.
+- **Specific cutoff date** — ask the user for the date, then apply the cutoff modifier from ad-hoc-query-agent.md.
 - **Current, don't ask again** — default to no cutoff for all future queries. Do not ask again.
 
 ### Query patterns
 
-Build queries dynamically from the bootstrap data following the patterns in `${CLAUDE_SKILL_DIR}/query-patterns.md`. Key rules:
+Build queries dynamically from the bootstrap data following the patterns in `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md`. Key rules:
 
 - Never hardcode TYPE_KEYs, table names, or column names — always resolve from the bootstrap.
 - Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).
@@ -306,7 +306,7 @@ Build queries dynamically from the bootstrap data following the patterns in `${C
 
 ### Lineage tracing
 
-Every physical table includes `INST_KEY` for pipeline execution logging. Refer to `${CLAUDE_SKILL_DIR}/focal-framework.md` for the lineage query pattern joining `INST_KEY` to `PROCINST_DESC`.
+Every physical table includes `INST_KEY` for pipeline execution logging. Refer to `${CLAUDE_SKILL_DIR}/references/focal-framework.md` for the lineage query pattern joining `INST_KEY` to `PROCINST_DESC`.
 
 ### Safety guardrails
 
