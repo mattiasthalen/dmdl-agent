@@ -1,11 +1,11 @@
 {
   "name": "daana",
-  "description": "Interview-driven DMDL model and mapping builder for the Daana data platform",
-  "version": "1.8.0",
+  "description": "Interview-driven DMDL model, mapping, query, and unified star schema builder for the Daana data platform",
+  "version": "1.9.0",
   "author": {
     "name": "Mattias Thalén"
   },
   "repository": "https://github.com/mattiasthalen/daana-modeler",
   "license": "MIT",
-  "keywords": ["daana", "dmdl", "data-modeling", "data-warehouse"]
+  "keywords": ["daana", "dmdl", "data-modeling", "data-warehouse", "unified-star-schema"]
 }
