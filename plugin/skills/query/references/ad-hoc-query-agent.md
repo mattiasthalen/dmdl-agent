@@ -29,7 +29,9 @@ If the request is ambiguous, the agent **must** ask before building a query — 
 
 ## Phase 2: Bootstrap
 
-**Read `bootstrap.md` and run the bootstrap query before proceeding.** Re-run the bootstrap every time — even if you already ran it earlier in this session. Never reuse previous bootstrap results.
+The bootstrap data is provided by the focal agent before this workflow begins. The full metadata model is already cached in context — do not run the bootstrap query again.
+
+If the bootstrap data is not available in context, inform the calling skill that bootstrap is required.
 
 ## Phase 3: Match the User's Question to the Bootstrap Data
 
@@ -43,9 +45,9 @@ The agent already has the full metadata model from the bootstrap. Instead of que
 
 Once matched, the agent has everything from the bootstrap row: table name, TYPE_KEY, attribute names, and physical columns. No further metadata queries needed.
 
-### If the bootstrap is not available
+### Last-resort fallback (no bootstrap in context)
 
-Fall back to searching `ATOM_CONTX_NM.VAL_STR` directly:
+If, despite the above, no bootstrap data is available, fall back to searching `ATOM_CONTX_NM.VAL_STR` directly:
 
 ```sql
 SELECT ATOM_CONTX_KEY, VAL_STR

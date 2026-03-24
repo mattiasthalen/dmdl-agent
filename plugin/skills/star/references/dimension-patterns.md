@@ -4,7 +4,7 @@ This document describes how to generate dimension tables from the Focal framewor
 
 ## Prerequisites
 
-**Read `bootstrap.md` and run the bootstrap query before proceeding.** Re-run the bootstrap every time — even if you already ran it earlier in this session. Never reuse previous bootstrap results.
+The bootstrap data is provided by the focal agent before this workflow begins. The full metadata model is already cached in context.
 
 All patterns start from the bootstrap result and generate SQL that materializes a flat dimension table.
 
@@ -180,7 +180,7 @@ The template has two stages:
 1. **Pattern 2** — temporal alignment to produce one row per entity per change event, with all attributes carried forward
 2. **Version columns** — LEAD window to derive `effective_to` and `is_current`
 
-#### Stage 1: Temporal Alignment (Pattern 2 from ad_hoc_query_agent.md)
+#### Stage 1: Temporal Alignment (Pattern 2 from the query skill's ad-hoc-query-agent.md reference file)
 
 ```sql
 WITH twine AS (

@@ -4,7 +4,7 @@ This document describes how to generate fact tables from the Focal framework by 
 
 ## Prerequisites
 
-**Read `bootstrap.md` and run the bootstrap query before proceeding.** Re-run the bootstrap every time — even if you already ran it earlier in this session. Never reuse previous bootstrap results.
+The bootstrap data is provided by the focal agent before this workflow begins. The full metadata model is already cached in context.
 
 ## How Focal Maps to Facts
 
@@ -550,7 +550,7 @@ WHERE NOT EXISTS (
 
 ## Transaction Fact with History (Temporal Fact)
 
-When the user needs a fact table that **tracks how measures evolved over time** — not just the current state of each transaction — use Pattern 3 (Multi-Entity History) from `ad_hoc_query_agent.md`.
+When the user needs a fact table that **tracks how measures evolved over time** — not just the current state of each transaction — use Pattern 3 (Multi-Entity History).
 
 This produces a temporal fact where each row represents the state of a transaction at a point in time, with dimension keys resolved via carry-forward and LATERAL joins.
 
@@ -558,7 +558,7 @@ This produces a temporal fact where each row represents the state of a transacti
 
 **Focal mapping:** Pattern 3 (Multi-Entity History) — the anchor entity's descriptor and relationship tables are merged into a combined twine, related entity attributes resolved via LATERAL.
 
-The full pattern is documented in `ad_hoc_query_agent.md` under "Pattern 3: Multi-Entity History". The revenue-by-customer-over-time query built during development is a working example of this pattern.
+The full temporal alignment pattern is documented in the query skill's `ad-hoc-query-agent.md` reference file.
 
 ---
 
