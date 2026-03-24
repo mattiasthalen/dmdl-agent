@@ -4,15 +4,14 @@ daana-modeler is a Claude Code plugin for the Daana data platform. It provides t
 
 ## Repository Structure
 
-- **`.claude-plugin/`** — Marketplace manifest
+- **`.claude-plugin/`** — Plugin manifests
+  - `plugin.json` — Plugin metadata (name: `daana`)
   - `marketplace.json` — Marketplace catalog for plugin discovery
-- **`plugin/`** — Distributable plugin contents
-  - `.claude-plugin/plugin.json` — Plugin metadata (name: `daana`)
-  - `skills/model/SKILL.md` — Model interview skill (`/daana-model`)
+- **`skills/model/SKILL.md`** — Model interview skill (`/daana-model`)
   - `skills/model/references/` — Model schema, examples, source format references
-  - `skills/map/SKILL.md` — Mapping interview skill (`/daana-map`)
+- **`skills/map/SKILL.md`** — Mapping interview skill (`/daana-map`)
   - `skills/map/references/` — Mapping schema, examples, source format references
-  - `skills/query/SKILL.md` — Data query skill (`/daana-query`)
+- **`skills/query/SKILL.md`** — Data query skill (`/daana-query`)
   - `skills/query/references/` — Focal framework, bootstrap, query patterns, dimension/fact patterns, dialect, connections
 - **`docs/superpowers/specs/`** — Design specifications
 - **`docs/superpowers/plans/`** — Implementation plans
