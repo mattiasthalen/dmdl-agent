@@ -31,6 +31,12 @@ In Northwind: `ORDER_LINE_FOCAL` is the natural fact (numeric measures + relatio
 
 Every fact table needs foreign keys to its dimensions. In Focal, these come from relationship tables. The pattern for resolving dimension keys is the same across all fact types — only the anchor entity's treatment changes.
 
+> **CRITICAL — Relationship Column Names**
+>
+> The bootstrap's `table_pattern_column_name` returns `FOCAL01_KEY` / `FOCAL02_KEY` for relationship tables. These are **pattern indicators**, not physical column names. Always use the `attribute_name` from the bootstrap as the actual SQL column name. For example: `ORDER_KEY`, `CUSTOMER_KEY` — never `FOCAL01_KEY`.
+
+> **Source Schema:** The `[physical_schema]` placeholder in all templates below must be resolved from the bootstrap's `FOCAL_PHYSICAL_SCHEMA` value (e.g., `daana_dw`). Never hardcode the schema or use `focal` as a schema name.
+
 For **latest** fact tables (transaction, periodic snapshot), use Pattern 1 (RANK DESC) on each relationship:
 
 ```sql

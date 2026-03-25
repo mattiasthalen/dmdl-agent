@@ -8,6 +8,32 @@ This document describes how to generate dimension tables from the Focal framewor
 
 All patterns start from the bootstrap result and generate SQL that materializes a flat dimension table.
 
+## Column Naming Convention
+
+Dimension column aliases are derived from the bootstrap's `atomic_context_name`:
+
+1. Take the `atomic_context_name` (e.g., `PRODUCT_PRODUCT_NAME`)
+2. Identify the entity name — the `focal_name` without `_FOCAL` (e.g., `PRODUCT`)
+3. Strip exactly one leading `{ENTITY}_` prefix (e.g., `PRODUCT_NAME`)
+4. Lowercase the result → `product_name`
+
+> **CRITICAL:** Strip only ONE leading `{ENTITY}_` prefix. Do NOT strip recursively. `PRODUCT_PRODUCT_NAME` → `product_name`, never `name`.
+
+| `atomic_context_name` | Entity | Result |
+|---|---|---|
+| `PRODUCT_PRODUCT_NAME` | PRODUCT | `product_name` |
+| `STORE_STORE_NAME` | STORE | `store_name` |
+| `DEPARTMENT_DEPARTMENT_NAME` | DEPARTMENT | `department_name` |
+| `CUSTOMER_CUSTOMER_FIRST_NAME` | CUSTOMER | `customer_first_name` |
+
+## Relationship Column Names
+
+> **CRITICAL — FOCAL01_KEY / FOCAL02_KEY ARE NOT COLUMN NAMES**
+>
+> In relationship tables, the bootstrap's `table_pattern_column_name` returns `FOCAL01_KEY` or `FOCAL02_KEY`. These are **pattern indicators**, not physical column names. The actual column names are the `attribute_name` values from the bootstrap.
+>
+> **NEVER write `SELECT FOCAL01_KEY` or `SELECT FOCAL02_KEY`** — these columns do not exist in physical tables. Use the `attribute_name` instead (e.g., `ORDER_KEY`, `CUSTOMER_KEY`).
+
 ## How Focal Maps to Dimensions
 
 A Focal **entity** (e.g. `CUSTOMER_FOCAL`) with its **descriptor table** (e.g. `CUSTOMER_DESC`) is a natural dimension candidate. The typed rows in the descriptor table store the dimension's attributes, and the `EFF_TMSTP` / `ROW_ST` columns provide full temporal tracking.
