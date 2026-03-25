@@ -242,7 +242,16 @@ ranked_{entity} AS (
 
 For each relationship table connecting a bridge source to a peripheral, create a RANK CTE. The `FOCAL01_KEY` side is the many (bridge source), the `FOCAL02_KEY` side is the one (peripheral).
 
-**Important:** In relationship tables, `FOCAL01_KEY` and `FOCAL02_KEY` are pattern names from the bootstrap — the actual physical column names are the `attribute_name` values. For example, if the bootstrap shows `attribute_name = ORDER_LINE_KEY` with `table_pattern_column_name = FOCAL01_KEY`, then `ORDER_LINE_KEY` is the real column name.
+> **CRITICAL — FOCAL01_KEY / FOCAL02_KEY ARE NOT COLUMN NAMES**
+>
+> In relationship tables, `FOCAL01_KEY` and `FOCAL02_KEY` are **pattern indicators** from the bootstrap, NOT physical column names. The actual column names are the `attribute_name` values:
+>
+> | Bootstrap `table_pattern_column_name` | Bootstrap `attribute_name` | Use in SQL |
+> |---|---|---|
+> | `FOCAL01_KEY` | `ORDER_LINE_KEY` | `SELECT ORDER_LINE_KEY FROM ...` |
+> | `FOCAL02_KEY` | `ORDER_KEY` | `SELECT ORDER_KEY FROM ...` |
+>
+> **NEVER write `SELECT FOCAL01_KEY` or `SELECT FOCAL02_KEY`** — these columns do not exist in physical tables.
 
 ```sql
 ranked_{rel_table} AS (
@@ -938,3 +947,39 @@ CREATE TABLE {schema}.{name} AS
 ```
 
 The `{schema}` is determined from the user's connection profile or asked during the interview. The `{name}` follows the file naming conventions (e.g., `customer`, `_bridge`, `_dates`, `_times`).
+
+## Common Mistakes
+
+### Mistake 1: Using FOCAL01_KEY / FOCAL02_KEY as column names
+
+**Wrong:**
+```sql
+SELECT FOCAL01_KEY, FOCAL02_KEY FROM {source_schema}.ORDER_LINE_ORDER_X
+```
+
+**Correct:**
+```sql
+-- Use attribute_name from bootstrap, not table_pattern_column_name
+SELECT ORDER_LINE_KEY, ORDER_KEY FROM {source_schema}.ORDER_LINE_ORDER_X
+```
+
+The bootstrap's `table_pattern_column_name` tells you the ROLE (`FOCAL01_KEY` = many side, `FOCAL02_KEY` = one side). The `attribute_name` tells you the ACTUAL COLUMN NAME.
+
+### Mistake 2: Using wrong schema name
+
+**Wrong:**
+```sql
+SELECT * FROM focal.CUSTOMER_DESC
+```
+
+**Correct:**
+```sql
+-- Use FOCAL_PHYSICAL_SCHEMA from bootstrap
+SELECT * FROM {source_schema}.CUSTOMER_DESC
+```
+
+### Mistake 3: Over-stripping column names
+
+**Wrong:** `PRODUCT_PRODUCT_NAME` → `name`
+
+**Correct:** `PRODUCT_PRODUCT_NAME` → `product_name` (strip entity prefix exactly once)
