@@ -38,7 +38,7 @@ Ask the user one question at a time using the `AskUserQuestion` tool. Do NOT pri
 
 Auto-classify entities from the bootstrap:
 - **Bridge candidates:** Entities with at least one timestamp attribute (STA_TMSTP or END_TMSTP) and/or numeric attributes (VAL_NUM)
-- **Peripheral candidates:** Entities referenced via M:1 relationships (on the FOCAL02_KEY side)
+- **Peripheral candidates:** ALL entities reachable via recursive M:1 relationship chains from the bridge sources. Follow the "Recursive Peripheral Discovery" algorithm in `uss-patterns.md` — walk every M:1 chain to its terminal entity. Every discovered entity becomes a peripheral AND contributes rows to the bridge.
 
 <HARD-GATE>
 **You MUST ask the user to confirm the entity classification before proceeding. Do NOT skip this step.**
@@ -87,6 +87,8 @@ If "Custom path", ask the user to provide the path.
 ## Phase 2: Generate
 
 After all interview answers are collected, dispatch a single subagent using the `Agent` tool to generate all SQL files.
+
+**Source schema:** Use `FOCAL_PHYSICAL_SCHEMA` from the bootstrap result as the source schema in all generated SQL `FROM` clauses. This is typically `daana_dw` but varies by installation. Never hardcode the schema — always resolve it from the bootstrap.
 
 ### Subagent prompt template
 
