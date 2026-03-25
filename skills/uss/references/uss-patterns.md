@@ -704,6 +704,25 @@ Use `LEAD` window function to compute `valid_to` from the next row's `EFF_TMSTP`
 )
 ```
 
+### 2a. Temporal Peripheral FK Keys
+
+When historical mode is selected, the bridge's FK to each peripheral must include the peripheral's `valid_from` so consumers can perform point-in-time joins. For each peripheral FK column `_key__{peripheral}`, also include `_valid_from__{peripheral}`:
+
+```sql
+-- In the bridge output, for each temporal peripheral:
+_key__{peripheral},
+_valid_from__{peripheral},   -- peripheral's valid_from for point-in-time join
+```
+
+This enables the consumer join pattern:
+
+```sql
+JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
+    AND b._valid_from__product = p.valid_from
+```
+
+> **Note:** Only add `_valid_from__{peripheral}` columns when historical mode is selected. In snapshot mode, there is only one version per entity key, so the simple FK join is sufficient.
+
 ### 3. Include ROW_ST in output for deletion tracking
 
 When `ROW_ST = 'N'`, NULL out measures and timestamps so downstream consumers see the value disappearing at that point in time:
