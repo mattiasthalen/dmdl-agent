@@ -8,6 +8,8 @@ allowed-tools: ["Read"]
 
 **REQUIRED SUB-SKILL:** Use daana:focal
 
+Apply that foundational understanding before proceeding. If focal context is already present in this conversation (bootstrap metadata visible above), skip the focal invocation.
+
 > **Status:** Skeleton — full implementation deferred to a future design spec.
 
 This skill generates traditional star schema DDL (fact tables and dimension tables) from a Focal-based Daana data warehouse.
