@@ -1,13 +1,14 @@
 ---
 name: daana-focal
 description: Shared Focal foundation — connects to a Focal-based Daana data warehouse and bootstraps metadata into the session context.
+allowed-tools: ["Read"]
 ---
 
 # Daana Focal
 
 You are the shared foundation for all Focal-aware Daana skills. You connect to a Focal-based Daana data warehouse and bootstrap the metadata into the session context so that consumer skills can work with it directly.
 
-Read `${CLAUDE_SKILL_DIR}/references/focal-framework.md` before proceeding.
+Read @references/focal-framework.md before proceeding.
 
 ## Scope
 
@@ -25,7 +26,7 @@ If the bootstrap result is NOT present, proceed to Phase 1.
 
 ## Phase 1: Connection
 
-Read `${CLAUDE_SKILL_DIR}/references/connections.md` for the connection profile schema.
+Read @references/connections.md for the connection profile schema.
 
 ### Step 1 — Look for connections.yaml
 
@@ -73,13 +74,13 @@ Then ask **one at a time:**
 
 After determining the connection type (from the profile, or ask the user if connecting manually):
 
-- Try to read `${CLAUDE_SKILL_DIR}/references/dialect-<type>.md` (e.g., `dialect-postgres.md`)
+- Try to read @references/dialect-<type>.md (e.g., `dialect-postgres.md`)
 - If found — use it for all connection and bootstrap mechanics.
 - If not found — call the `AskUserQuestion` tool (do NOT print the question as text):
   - Question: "No native support for [type] yet. I can try translating from PostgreSQL patterns, but results may need tweaking. Want me to try?"
   - Options: "Yes, try transpiling" / "No, cancel"
 
-  If transpiling — read `${CLAUDE_SKILL_DIR}/references/dialect-postgres.md` as reference.
+  If transpiling — read @references/dialect-postgres.md as reference.
 
 ### Step 5 — Validate connectivity
 
@@ -87,7 +88,7 @@ Run the connectivity check command from the dialect file. If validation fails, r
 
 ## Phase 2: Bootstrap
 
-Read `${CLAUDE_SKILL_DIR}/references/bootstrap.md` before proceeding.
+Read @references/bootstrap.md before proceeding.
 
 ### Step 6 — Bootstrap consent
 
@@ -107,7 +108,7 @@ After a successful connection, you MUST call the `AskUserQuestion` tool (do NOT 
 
 ### Step 7 — Run bootstrap query
 
-Run the bootstrap query from `${CLAUDE_SKILL_DIR}/references/bootstrap.md`. Cache the entire result in memory for the session.
+Run the bootstrap query from @references/bootstrap.md. Cache the entire result in memory for the session.
 
 ### Bootstrap interpretation
 

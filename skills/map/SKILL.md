@@ -1,6 +1,7 @@
 ---
 name: daana-map
 description: Interview-driven DMDL mapping file builder. Maps source tables to model entities with transformation expressions.
+allowed-tools: ["Read"]
 ---
 
 # Daana Mapping Builder
@@ -39,7 +40,7 @@ In Phase 1 (Entity Selection), after listing unmapped entities, call the `AskUse
 **STOP and wait for the user's answer.**
 
 If the user provides a schema:
-1. Read `${CLAUDE_SKILL_DIR}/references/source-schema-formats.md` for parsing instructions.
+1. Read @references/source-schema-formats.md for parsing instructions.
 2. Auto-detect the format from the content structure.
 3. Parse and summarize the extracted tables, columns, and inferred DMDL types.
 4. Present the summary to the user for confirmation.
@@ -54,8 +55,8 @@ When source schema context is available:
 
 ## Phase 1: Entity Selection
 
-Read `${CLAUDE_SKILL_DIR}/references/mapping-schema.md` for schema rules and validation constraints.
-Read `${CLAUDE_SKILL_DIR}/references/mapping-examples.md` for annotated YAML templates and patterns.
+Read @references/mapping-schema.md for schema rules and validation constraints.
+Read @references/mapping-examples.md for annotated YAML templates and patterns.
 
 ### Step 1 — Read model and check existing mappings
 
@@ -272,13 +273,13 @@ Always use `default_mapping_group`. Do not ask the user about this.
 - Write to `mappings/<entity-lowercase>-mapping.yaml` (e.g., `mappings/order-mapping.yaml`).
 - **New file:** use the Write tool.
 - **Updating existing file:** re-read the file first with the Read tool, then use the Edit tool.
-- Consult `${CLAUDE_SKILL_DIR}/references/mapping-examples.md` for YAML structure templates.
+- Consult @references/mapping-examples.md for YAML structure templates.
 
 ### Step 5: Validate
 
 1. Check if `daana-cli` is available by running `daana-cli --version`. If the command is not found or exits non-zero, fall back to built-in validation.
 2. **With daana-cli:** Run `daana-cli check mapping <file> --model model.yaml --connections connections.yaml` and surface any errors.
-3. **Without daana-cli:** Apply validation rules from `${CLAUDE_SKILL_DIR}/references/mapping-schema.md`:
+3. **Without daana-cli:** Apply validation rules from @references/mapping-schema.md:
    - `entity_id` references a valid entity in `model.yaml`
    - All attribute `id` values reference valid attributes in that entity
    - All relationship `id` values reference valid relationships where this entity is the source
@@ -331,7 +332,7 @@ Always write to `mappings/<entity-lowercase>-mapping.yaml` (e.g., `mappings/cust
 
 ### Reference Templates
 
-Consult `${CLAUDE_SKILL_DIR}/references/mapping-examples.md` for YAML structure templates when generating output — minimal mapping, complete mapping with overrides, multi-table mapping, and relationship patterns.
+Consult @references/mapping-examples.md for YAML structure templates when generating output — minimal mapping, complete mapping with overrides, multi-table mapping, and relationship patterns.
 
 ---
 

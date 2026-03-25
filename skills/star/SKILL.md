@@ -1,6 +1,7 @@
 ---
 name: daana-star
 description: Generate traditional star schema SQL (fact tables + dimension tables) from a Focal-based Daana data warehouse.
+allowed-tools: ["Read"]
 ---
 
 # Daana Star Schema Generator
@@ -21,5 +22,5 @@ The focal skill establishes the database connection and bootstraps metadata. Onc
 
 ## References
 
-- `${CLAUDE_SKILL_DIR}/references/dimension-patterns.md` — SCD types 0-6, mixed types, design considerations.
-- `${CLAUDE_SKILL_DIR}/references/fact-patterns.md` — Transaction, periodic snapshot, accumulating snapshot, factless facts.
+- @references/dimension-patterns.md — SCD types 0-6, mixed types, design considerations.
+- @references/fact-patterns.md — Transaction, periodic snapshot, accumulating snapshot, factless facts.

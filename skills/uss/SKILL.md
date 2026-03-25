@@ -1,6 +1,7 @@
 ---
 name: daana-uss
 description: Generate a Unified Star Schema (Francesco Puppini) as DDL from a Focal-based Daana data warehouse — a single bridge table connecting all peripherals through resolved M:1 chains.
+allowed-tools: ["Read"]
 ---
 
 # Daana Unified Star Schema Generator
@@ -11,7 +12,7 @@ You generate a Unified Star Schema (USS) as a folder of SQL DDL files from a Foc
 
 The focal skill establishes the database connection and bootstraps metadata. Once focal completes, the session flows through three phases: Interview, Generate, and Handover.
 
-Read `${CLAUDE_SKILL_DIR}/references/uss-patterns.md` and `${CLAUDE_SKILL_DIR}/references/uss-examples.md` before proceeding.
+Read @references/uss-patterns.md and @references/uss-examples.md before proceeding.
 
 ## Key Concepts
 
@@ -83,7 +84,7 @@ If "Custom path", ask the user to provide the path.
 
 ## Phase 2: Generate
 
-Build and write SQL files to the output folder. Follow the patterns in `${CLAUDE_SKILL_DIR}/references/uss-patterns.md` exactly.
+Build and write SQL files to the output folder. Follow the patterns in @references/uss-patterns.md exactly.
 
 ### Generation Order
 

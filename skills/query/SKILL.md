@@ -1,6 +1,7 @@
 ---
 name: daana-query
 description: Data skill that answers natural language questions about Focal-based Daana data warehouses via live SQL queries.
+allowed-tools: ["Read"]
 ---
 
 # Daana Query
@@ -139,7 +140,7 @@ After all results are presented, return to the normal Phase 1 query loop for fur
 
 ## Phase 1: Query Loop
 
-Read `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md` for all query construction patterns. Follow those patterns exactly when building SQL.
+Read @references/ad-hoc-query-agent.md for all query construction patterns. Follow those patterns exactly when building SQL.
 
 ### Matching user questions to metadata
 
@@ -186,7 +187,7 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 ### Query patterns
 
-Build queries dynamically from the bootstrap data following the patterns in `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md`. Key rules:
+Build queries dynamically from the bootstrap data following the patterns in @references/ad-hoc-query-agent.md. Key rules:
 
 - Never hardcode TYPE_KEYs, table names, or column names — always resolve from the bootstrap.
 - Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).

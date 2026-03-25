@@ -1,6 +1,7 @@
 ---
 name: daana-model
 description: Interview-driven DMDL model.yaml builder. Walks users through defining entities, attributes, and relationships.
+allowed-tools: ["Read"]
 ---
 
 # Daana Modeler
@@ -40,7 +41,7 @@ In Phase 1 (Detection & Setup), after detecting existing model state, call the `
 **STOP and wait for the user's answer.**
 
 If the user provides a schema:
-1. Read `${CLAUDE_SKILL_DIR}/references/source-schema-formats.md` for parsing instructions.
+1. Read @references/source-schema-formats.md for parsing instructions.
 2. Auto-detect the format from the content structure.
 3. Parse and summarize the extracted tables, columns, and inferred DMDL types.
 4. Present the summary to the user for confirmation.
@@ -54,8 +55,8 @@ When source schema context is available:
 
 ## Phase 1: Detection & Setup
 
-Read `${CLAUDE_SKILL_DIR}/references/model-schema.md` for schema rules and validation constraints.
-Read `${CLAUDE_SKILL_DIR}/references/model-examples.md` for annotated YAML templates and patterns.
+Read @references/model-schema.md for schema rules and validation constraints.
+Read @references/model-examples.md for annotated YAML templates and patterns.
 
 ### Step 1 — Check for existing model
 
@@ -190,14 +191,14 @@ If the user has corrections, apply them and re-present the summary for confirmat
 ### Step 7: Write to model.yaml
 
 1. **Re-read `model.yaml`** before editing — always re-read to avoid conflicts with external edits.
-2. **First entity (no file exists):** Use the Write tool to create `model.yaml` with model metadata + entities section. Consult `${CLAUDE_SKILL_DIR}/references/model-examples.md` for the exact YAML structure.
+2. **First entity (no file exists):** Use the Write tool to create `model.yaml` with model metadata + entities section. Consult @references/model-examples.md for the exact YAML structure.
 3. **Subsequent entities:** Use the Edit tool to append to the entities list.
 
 ### Step 8: Validate
 
 1. Check if `daana-cli` is available by running `daana-cli --version`. If the command is not found or exits non-zero, fall back to built-in validation.
 2. **With daana-cli:** Run `daana-cli check model <path>` and surface any errors to help the user fix them.
-3. **Without daana-cli:** Apply validation rules from `${CLAUDE_SKILL_DIR}/references/model-schema.md` (required fields, naming format, type validity, group constraints, uniqueness, etc.).
+3. **Without daana-cli:** Apply validation rules from @references/model-schema.md (required fields, naming format, type validity, group constraints, uniqueness, etc.).
 
 ---
 
@@ -269,7 +270,7 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 ### Step 4: Final validation
 
 - Run `daana-cli check model <path>` if available.
-- Otherwise apply built-in validation rules from `${CLAUDE_SKILL_DIR}/references/model-schema.md`.
+- Otherwise apply built-in validation rules from @references/model-schema.md.
 
 ### Step 5: Handover
 
@@ -304,7 +305,7 @@ Always set `id` and `name` to the same UPPERCASE_WITH_UNDERSCORES value. Never a
 
 ### Initial Creation
 
-When no `model.yaml` exists, use the Write tool to create the file with model metadata and the first entity after the first entity interview completes. Include the `model:` top-level key, metadata fields, and `entities:` list. Refer to `${CLAUDE_SKILL_DIR}/references/model-examples.md` for the exact YAML structure.
+When no `model.yaml` exists, use the Write tool to create the file with model metadata and the first entity after the first entity interview completes. Include the `model:` top-level key, metadata fields, and `entities:` list. Refer to @references/model-examples.md for the exact YAML structure.
 
 ### Incremental Updates
 
@@ -316,4 +317,4 @@ Default is `model.yaml` in the project root. Only ask for a different path if no
 
 ### Reference Templates
 
-Consult `${CLAUDE_SKILL_DIR}/references/model-examples.md` for YAML structure templates when generating output — minimal model, complete model with relationships, grouped attributes, and relationship direction patterns.
+Consult @references/model-examples.md for YAML structure templates when generating output — minimal model, complete model with relationships, grouped attributes, and relationship direction patterns.
