@@ -15,6 +15,8 @@ The bootstrap data from `f_focal_read()` must be available in context. Each boot
 | `attribute_name` | Logical attribute name within the atomic context |
 | `table_pattern_column_name` | Physical column: `VAL_STR`, `VAL_NUM`, `STA_TMSTP`, `END_TMSTP`, `UOM`, `FOCAL01_KEY`, `FOCAL02_KEY` |
 
+> **CRITICAL:** The source schema for all SQL is the `FOCAL_PHYSICAL_SCHEMA` value from the bootstrap (e.g., `daana_dw`). Use `{source_schema}` in all `FROM` clauses. **Never** hardcode `daana_dw` or use `focal` as a schema name.
+
 ## RANK Dedup Pattern (Base)
 
 All USS patterns use the RANK window function to resolve the latest version of each row. This is the foundational CTE used throughout.
@@ -27,7 +29,7 @@ WITH ranked AS (
             PARTITION BY {entity}_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{table}
+    FROM {source_schema}.{table}
     WHERE ROW_ST = 'Y'
 ),
 deduped AS (
@@ -65,7 +67,7 @@ WITH ranked AS (
             PARTITION BY {entity}_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{descriptor_table}
+    FROM {source_schema}.{descriptor_table}
     WHERE ROW_ST = 'Y'
 )
 SELECT
@@ -116,7 +118,7 @@ WITH ranked_desc AS (
             PARTITION BY {entity}_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{descriptor_table_1}
+    FROM {source_schema}.{descriptor_table_1}
     WHERE ROW_ST = 'Y'
 ),
 desc_pivoted AS (
@@ -138,7 +140,7 @@ ranked_desc2 AS (
             PARTITION BY {entity}_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{descriptor_table_2}
+    FROM {source_schema}.{descriptor_table_2}
     WHERE ROW_ST = 'Y'
 ),
 desc2_pivoted AS (
@@ -182,7 +184,7 @@ WITH ranked AS (
             PARTITION BY CUSTOMER_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.CUSTOMER_DESC
+    FROM {source_schema}.CUSTOMER_DESC
     WHERE ROW_ST = 'Y'
 )
 SELECT
@@ -220,7 +222,7 @@ ranked_{entity} AS (
             PARTITION BY {entity}_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{entity}_DESC
+    FROM {source_schema}.{entity}_DESC
     WHERE ROW_ST = 'Y'
 ),
 {entity}_attrs AS (
@@ -251,7 +253,7 @@ ranked_{rel_table} AS (
             PARTITION BY {source_attr_name}
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{relationship_table}
+    FROM {source_schema}.{relationship_table}
     WHERE ROW_ST = 'Y'
       AND TYPE_KEY = {rel_type_key}
 ),
@@ -406,7 +408,7 @@ ranked_order_line AS (
             PARTITION BY ORDER_LINE_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.ORDER_LINE_DESC
+    FROM {source_schema}.ORDER_LINE_DESC
     WHERE ROW_ST = 'Y'
 ),
 order_line_attrs AS (
@@ -431,7 +433,7 @@ ranked_order_line_order_x AS (
             PARTITION BY ORDER_LINE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.ORDER_LINE_ORDER_X
+    FROM {source_schema}.ORDER_LINE_ORDER_X
     WHERE ROW_ST = 'Y'
       AND TYPE_KEY = 50
 ),
@@ -448,7 +450,7 @@ ranked_order_line_product_x AS (
             PARTITION BY ORDER_LINE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.ORDER_LINE_PRODUCT_X
+    FROM {source_schema}.ORDER_LINE_PRODUCT_X
     WHERE ROW_ST = 'Y'
       AND TYPE_KEY = 51
 ),
@@ -488,7 +490,7 @@ ranked_order AS (
             PARTITION BY ORDER_KEY, TYPE_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.ORDER_DESC
+    FROM {source_schema}.ORDER_DESC
     WHERE ROW_ST = 'Y'
 ),
 order_attrs AS (
@@ -512,7 +514,7 @@ ranked_order_customer_x AS (
             PARTITION BY ORDER_KEY
             ORDER BY EFF_TMSTP DESC, VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.ORDER_CUSTOMER_X
+    FROM {source_schema}.ORDER_CUSTOMER_X
     WHERE ROW_ST = 'Y'
       AND TYPE_KEY = 70
 ),
@@ -663,7 +665,7 @@ ranked_{entity} AS (
             PARTITION BY {entity}_KEY, TYPE_KEY, EFF_TMSTP
             ORDER BY VER_TMSTP DESC
         ) AS rnk
-    FROM daana_dw.{entity}_DESC
+    FROM {source_schema}.{entity}_DESC
     -- No ROW_ST filter — include all rows to track deletions
 )
 ```
