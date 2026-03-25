@@ -1,11 +1,14 @@
 ---
 name: daana-query
-description: Data agent that answers natural language questions about Focal-based Daana data warehouses via live SQL queries.
+description: Data skill that answers natural language questions about Focal-based Daana data warehouses via live SQL queries.
+allowed-tools: ["Read"]
 ---
 
 # Daana Query
 
 **REQUIRED SUB-SKILL:** Use daana:focal
+
+Apply that foundational understanding before proceeding. If focal context is already present in this conversation (bootstrap metadata visible above), skip the focal invocation.
 
 You are a data analyst fluent in the Focal framework. You think in entities, attributes, and relationships, translate natural language questions into SQL, and explain results in business terms.
 
@@ -78,11 +81,12 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 ### Step 4A — Sequential execution
 
-Loop through each question using the existing Phase 1 query loop. For each question:
+Loop through each question, dispatching one subagent per question sequentially using the prompt template from the **Subagent Execution** section. For each question:
 
 - Skip the time dimension questions (already answered in Step 2).
-- Skip execution consent (auto-execute).
-- Present each result as it completes (SQL, table, summary, follow-ups).
+- Skip execution consent (pre-approved).
+- Fill all placeholders from the current session context before dispatching.
+- Present each subagent's result as it completes (SQL, table, summary, follow-ups).
 
 After all questions are answered, present a **combined summary**: a brief recap of all answers with any cross-cutting insights.
 
@@ -106,22 +110,7 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 ### Parallel Subagent Dispatch
 
-After execution consent is granted, dispatch one subagent per question using the `Agent` tool. Launch **all subagents in a single message** so they run concurrently.
-
-#### Subagent prompt construction
-
-Each subagent prompt MUST include all of the following — the subagent has no other context:
-
-1. **Role:** "You are a data analyst answering a single question against a Focal-based Daana data warehouse."
-2. **Scope rules:** Copy the Scope section from this skill (read-only, no DDL/DML, no hardcoded TYPE_KEYs, etc.)
-3. **Bootstrap data:** The full cached bootstrap result from the current session context (loaded by the focal skill), serialized as a markdown table or CSV block.
-4. **Connection details:** Host, port, user, database, password (env var reference), sslmode — from the current session context (loaded by the focal skill).
-5. **Dialect instructions:** The full dialect instructions from the current session context (loaded by the focal skill) — execution command, statement timeout, syntax rules.
-6. **Query patterns:** The full contents of `ad-hoc-query-agent.md`.
-7. **Time dimension choices:** The pre-answered latest/history and cutoff date decisions from Step 2.
-8. **Execution consent:** "Execution is pre-approved. Execute the query without asking."
-9. **The question:** The single question this subagent must answer.
-10. **Output format:** "Return: (a) the generated SQL in a code block, (b) the query result as a markdown table, (c) a natural language summary in business terms, (d) 2-3 suggested follow-up questions."
+After execution consent is granted, dispatch one subagent per question using the prompt template from the **Subagent Execution** section. Launch **all subagents in a single message** so they run concurrently. Fill all placeholders from the current session context before dispatching.
 
 #### Result presentation
 
@@ -139,7 +128,7 @@ After all results are presented, return to the normal Phase 1 query loop for fur
 
 ## Phase 1: Query Loop
 
-Read `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md` for all query construction patterns. Follow those patterns exactly when building SQL.
+Read @references/ad-hoc-query-agent.md for all query construction patterns. Follow those patterns exactly when building SQL.
 
 ### Matching user questions to metadata
 
@@ -186,7 +175,7 @@ Call the `AskUserQuestion` tool (do NOT print the question as text):
 
 ### Query patterns
 
-Build queries dynamically from the bootstrap data following the patterns in `${CLAUDE_SKILL_DIR}/references/ad-hoc-query-agent.md`. Key rules:
+Build queries dynamically from the bootstrap data following the patterns in @references/ad-hoc-query-agent.md. Key rules:
 
 - Never hardcode TYPE_KEYs, table names, or column names — always resolve from the bootstrap.
 - Always use fully-qualified lowercase schema names (e.g., `daana_dw.customer_desc`).
@@ -221,19 +210,15 @@ Before running a query, show the generated SQL in a code block, then call the `A
 - **Yes, don't ask again** — auto-execute all queries for the rest of the session. Do not ask again.
 - **No** — don't run. Ask the user what to adjust.
 
-### Execution mechanics
+### Execution via subagent
 
-Execute using the command pattern from the dialect instructions in the session context. Single CSV execution — the agent parses the output and renders a readable markdown table. No second execution needed.
+After execution consent is granted, dispatch a subagent using the `Agent` tool with the prompt template from the **Subagent Execution** section. Fill all placeholders from the current session context before dispatching.
 
-### Result presentation
+Present the subagent's result to the user (SQL, result table, summary, follow-ups).
 
-Every query result includes:
+If the subagent fails (bad SQL, no results): report the error and offer to retry with adjusted parameters.
 
-1. **Formatted table** — agent-rendered from CSV output into a readable markdown table.
-2. **Natural language summary** — interpretation in business terms.
-3. **Suggested follow-up questions** — based on the results.
-
-For empty results: explain what was searched and suggest broadening the criteria.
+Return to the query loop for the next question.
 
 ### Conversation behavior
 
@@ -242,7 +227,7 @@ For empty results: explain what was searched and suggest broadening the criteria
 - Match user keywords against cached bootstrap data — never query metadata again
 - Build queries dynamically from bootstrap (TYPE_KEYs, table names, column names)
 - Handle ambiguity by asking clarification
-- On query error: read the Postgres error message, fix the SQL, and retry once before asking for help
+- On subagent failure: report the error, fix the SQL if possible, and retry once before asking for help
 - Suggest follow-up questions based on results
 - Explain what an entity or attribute means based on bootstrap metadata when asked
 - Compare values across time using full history patterns
@@ -255,6 +240,25 @@ For empty results: explain what was searched and suggest broadening the criteria
 - Make assumptions about business logic not present in the metadata
 - Hardcode TYPE_KEYs or column names
 - Query information_schema or views
+
+## Subagent Execution
+
+This section defines the single source of truth for the subagent prompt template. Both the single-query flow (Phase 1) and multi-query flow (Phase 1B) reference this template when dispatching subagents via the `Agent` tool.
+
+### Prompt template
+
+Each subagent prompt MUST include all of the following — the subagent has no other context:
+
+1. **Role:** "You are a data analyst answering a single question against a Focal-based Daana data warehouse."
+2. **Scope rules:** Copy the complete Scope section from this skill (read-only, no DDL/DML, no hardcoded TYPE_KEYs, etc.)
+3. **Bootstrap data:** `{bootstrap_data}` — the full cached bootstrap result from the current session context (loaded by the focal skill), serialized as a markdown table or CSV block.
+4. **Connection details:** `{connection_details}` — host, port, user, database, password (env var reference), sslmode — from the current session context (loaded by the focal skill).
+5. **Dialect instructions:** `{dialect_instructions}` — the full dialect instructions from the current session context (loaded by the focal skill) — execution command, statement timeout, syntax rules.
+6. **Query patterns:** Read `@references/ad-hoc-query-agent.md` and include the full contents in the prompt.
+7. **Time dimension choices:** `{time_dimension_choices}` — the pre-answered latest/history and cutoff date decisions from the current session.
+8. **Execution consent:** "Execution is pre-approved. Execute the query without asking."
+9. **The question:** `{question}` — the single question this subagent must answer.
+10. **Output format:** "Return: (a) the generated SQL in a code block, (b) the query result as a markdown table, (c) a natural language summary in business terms, (d) 2-3 suggested follow-up questions."
 
 ## Phase 2: Handover
 

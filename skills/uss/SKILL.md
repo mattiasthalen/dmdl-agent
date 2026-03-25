@@ -1,17 +1,20 @@
 ---
 name: daana-uss
 description: Generate a Unified Star Schema (Francesco Puppini) as DDL from a Focal-based Daana data warehouse — a single bridge table connecting all peripherals through resolved M:1 chains.
+allowed-tools: ["Read"]
 ---
 
 # Daana Unified Star Schema Generator
 
 **REQUIRED SUB-SKILL:** Use daana:focal
 
+Apply that foundational understanding before proceeding. If focal context is already present in this conversation (bootstrap metadata visible above), skip the focal invocation.
+
 You generate a Unified Star Schema (USS) as a folder of SQL DDL files from a Focal-based Daana data warehouse. The USS eliminates fan traps and chasm traps by creating a single bridge table that all peripherals (complete entity views) join to through resolved M:1 relationship chains.
 
 The focal skill establishes the database connection and bootstraps metadata. Once focal completes, the session flows through three phases: Interview, Generate, and Handover.
 
-Read `${CLAUDE_SKILL_DIR}/references/uss-patterns.md` and `${CLAUDE_SKILL_DIR}/references/uss-examples.md` before proceeding.
+Read @references/uss-patterns.md and @references/uss-examples.md before proceeding.
 
 ## Key Concepts
 
@@ -83,41 +86,62 @@ If "Custom path", ask the user to provide the path.
 
 ## Phase 2: Generate
 
-Build and write SQL files to the output folder. Follow the patterns in `${CLAUDE_SKILL_DIR}/references/uss-patterns.md` exactly.
+After all interview answers are collected, dispatch a single subagent using the `Agent` tool to generate all SQL files.
 
-### Generation Order
+### Subagent prompt template
 
-1. **Peripherals first** — One `.sql` per peripheral entity (lowercased: `customer.sql`, `product.sql`)
-2. **Bridge** — `_bridge.sql` (depends on knowing all peripheral keys)
-3. **Synthetic date peripheral** — `_dates.sql` (depends on bridge for min/max year)
-4. **Synthetic time peripheral** — `_times.sql` (independent)
+The subagent prompt MUST include all of the following — the subagent has no other context:
 
-### Column Naming Conventions
+1. **Role:** "You are a SQL DDL generator creating a Unified Star Schema from Focal metadata."
+2. **Scope rules:** Copy the Scope section from this skill verbatim:
+   - DDL generation only. You produce SQL files — you do not modify existing data.
+   - Never hardcode TYPE_KEYs — always resolve from bootstrap.
+   - Only follow M:1 relationship chains (no fan-out). Exclude or flag M:M relationships.
+   - Never assume physical columns — always resolve via bootstrap.
+   - Use the active dialect from the focal context for all SQL generation. Only PostgreSQL patterns are currently implemented.
+3. **Bootstrap data:** The full cached bootstrap result from the current session context, serialized as a markdown table.
+4. **Connection details:** Host, port, user, database, password (env var reference), sslmode — from the current session context.
+5. **Dialect instructions:** The full dialect instructions from the current session context — execution command, statement timeout, syntax rules.
+6. **USS patterns:** Read @references/uss-patterns.md and include the full contents in the subagent prompt.
+7. **USS examples:** Read @references/uss-examples.md and include the full contents in the subagent prompt.
+8. **Interview answers:**
+   - Entity classification: bridge sources and peripherals
+   - Temporal mode: event-grain unpivot or columnar dates
+   - Historical mode: snapshot or historical (valid_from/valid_to)
+   - Materialization: views, tables, mixed, or custom per-file
+   - Output folder path
+   - Target schema name
+9. **Column naming conventions:**
 
-| Pattern | Example | Description |
-|---------|---------|-------------|
-| `peripheral` | `peripheral` | Source entity name (no prefix) |
-| `event` | `event` | Event name (no prefix) |
-| `event_occurred_on` | `event_occurred_on` | Full timestamp (no prefix) |
-| `_key__{entity}` | `_key__customer` | FK to peripheral |
-| `_key__dates` | `_key__dates` | FK to synthetic date peripheral |
-| `_key__times` | `_key__times` | FK to synthetic time peripheral |
-| `_measure__{entity}__{attr}` | `_measure__order_line__unit_price` | Measure value |
-| `valid_from` | `valid_from` | Historical mode only |
-| `valid_to` | `valid_to` | Historical mode only |
+   | Pattern | Example | Description |
+   |---------|---------|-------------|
+   | `peripheral` | `peripheral` | Source entity name (no prefix) |
+   | `event` | `event` | Event name (no prefix) |
+   | `event_occurred_on` | `event_occurred_on` | Full timestamp (no prefix) |
+   | `_key__{entity}` | `_key__customer` | FK to peripheral |
+   | `_key__dates` | `_key__dates` | FK to synthetic date peripheral |
+   | `_key__times` | `_key__times` | FK to synthetic time peripheral |
+   | `_measure__{entity}__{attr}` | `_measure__order_line__unit_price` | Measure value |
+   | `valid_from` | `valid_from` | Historical mode only |
+   | `valid_to` | `valid_to` | Historical mode only |
 
-### File Naming
+10. **File naming rules:**
+    - Peripheral entities: lowercased entity name without `_FOCAL` suffix (e.g., `CUSTOMER_FOCAL` -> `customer.sql`)
+    - Synthetic files: prefixed with underscore (`_bridge.sql`, `_dates.sql`, `_times.sql`)
 
-- Peripheral entities: lowercased entity name without `_FOCAL` suffix (e.g., `CUSTOMER_FOCAL` → `customer.sql`)
-- Synthetic files: prefixed with underscore (`_bridge.sql`, `_dates.sql`, `_times.sql`)
+11. **DDL wrapping rules:** Based on the user's materialization choice:
+    - **View:** `CREATE OR REPLACE VIEW {schema}.{name} AS ...`
+    - **Table:** `CREATE TABLE {schema}.{name} AS ...`
 
-### Wrap each file with DDL
+12. **Generation order:** Peripherals first, then bridge, then synthetic date peripheral, then synthetic time peripheral.
 
-Based on the user's materialization choice:
-- **View:** `CREATE OR REPLACE VIEW {schema}.{name} AS ...`
-- **Table:** `CREATE TABLE {schema}.{name} AS ...`
+13. **Output instructions:** "Generate all SQL files and write them to {output_folder}. Return a list of generated files with brief descriptions."
 
-Ask the user for the target schema name if not obvious from the connection profile.
+### Result handling
+
+Present the subagent's file list to the user. If the subagent reports errors, offer to retry with adjusted parameters.
+
+Then proceed to Phase 3.
 
 ## Phase 3: Handover
 
@@ -134,6 +158,6 @@ After generating all files:
 
    **STOP and wait for the user's answer. Do NOT execute DDL until the user responds.**
 
-   - If yes: execute each file in order (peripherals → bridge → synthetics) using the connection details from the focal context.
+   - If yes: execute each file in order (peripherals -> bridge -> synthetics) using the connection details from the focal context.
    - If no: "Files are ready in `{output_folder}/`. You can run them manually."
 3. Suggest: "You can now use `/daana-query` to query the unified star schema."
