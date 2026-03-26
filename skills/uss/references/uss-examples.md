@@ -121,16 +121,36 @@ WITH ranked AS (
         ) AS rnk
     FROM {source_schema}.CUSTOMER_DESC
     WHERE ROW_ST = 'Y'
+),
+pivoted AS (
+    SELECT
+        CUSTOMER_KEY,
+        MAX(CASE WHEN TYPE_KEY = 30 THEN VAL_STR END) AS customer_first_name,
+        MAX(CASE WHEN TYPE_KEY = 31 THEN VAL_STR END) AS customer_last_name,
+        MAX(CASE WHEN TYPE_KEY = 32 THEN VAL_STR END) AS customer_email,
+        MAX(CASE WHEN TYPE_KEY = 33 THEN VAL_STR END) AS customer_city
+    FROM ranked
+    WHERE rnk = 1
+    GROUP BY CUSTOMER_KEY
 )
 SELECT
+    ROW_NUMBER() OVER (ORDER BY CUSTOMER_KEY) AS _peripheral_key,
     CUSTOMER_KEY,
-    MAX(CASE WHEN TYPE_KEY = 30 THEN VAL_STR END) AS customer_first_name,
-    MAX(CASE WHEN TYPE_KEY = 31 THEN VAL_STR END) AS customer_last_name,
-    MAX(CASE WHEN TYPE_KEY = 32 THEN VAL_STR END) AS customer_email,
-    MAX(CASE WHEN TYPE_KEY = 33 THEN VAL_STR END) AS customer_city
-FROM ranked
-WHERE rnk = 1
-GROUP BY CUSTOMER_KEY;
+    customer_first_name,
+    customer_last_name,
+    customer_email,
+    customer_city
+FROM pivoted
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS CUSTOMER_KEY,
+    NULL AS customer_first_name,
+    NULL AS customer_last_name,
+    NULL AS customer_email,
+    NULL AS customer_city;
 ```
 
 ### `product.sql`
@@ -149,15 +169,33 @@ WITH ranked AS (
         ) AS rnk
     FROM {source_schema}.PRODUCT_DESC
     WHERE ROW_ST = 'Y'
+),
+pivoted AS (
+    SELECT
+        PRODUCT_KEY,
+        MAX(CASE WHEN TYPE_KEY = 34 THEN VAL_STR END) AS product_name,
+        MAX(CASE WHEN TYPE_KEY = 35 THEN VAL_STR END) AS product_category,
+        MAX(CASE WHEN TYPE_KEY = 36 THEN VAL_NUM END) AS product_list_price
+    FROM ranked
+    WHERE rnk = 1
+    GROUP BY PRODUCT_KEY
 )
 SELECT
+    ROW_NUMBER() OVER (ORDER BY PRODUCT_KEY) AS _peripheral_key,
     PRODUCT_KEY,
-    MAX(CASE WHEN TYPE_KEY = 34 THEN VAL_STR END) AS product_name,
-    MAX(CASE WHEN TYPE_KEY = 35 THEN VAL_STR END) AS product_category,
-    MAX(CASE WHEN TYPE_KEY = 36 THEN VAL_NUM END) AS product_list_price
-FROM ranked
-WHERE rnk = 1
-GROUP BY PRODUCT_KEY;
+    product_name,
+    product_category,
+    product_list_price
+FROM pivoted
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS PRODUCT_KEY,
+    NULL AS product_name,
+    NULL AS product_category,
+    NULL AS product_list_price;
 ```
 
 ### `order.sql`
@@ -203,15 +241,33 @@ rel_customer AS (
     SELECT ORDER_KEY, CUSTOMER_KEY
     FROM ranked_order_customer_x
     WHERE rnk = 1
+),
+pivoted AS (
+    SELECT
+        o.ORDER_KEY,
+        o.order_placed_on,
+        o.order_required_by,
+        r.CUSTOMER_KEY
+    FROM order_attrs o
+    LEFT JOIN rel_customer r
+        ON o.ORDER_KEY = r.ORDER_KEY
 )
 SELECT
-    o.ORDER_KEY,
-    o.order_placed_on,
-    o.order_required_by,
-    r.CUSTOMER_KEY
-FROM order_attrs o
-LEFT JOIN rel_customer r
-    ON o.ORDER_KEY = r.ORDER_KEY;
+    ROW_NUMBER() OVER (ORDER BY ORDER_KEY) AS _peripheral_key,
+    ORDER_KEY,
+    order_placed_on,
+    order_required_by,
+    CUSTOMER_KEY
+FROM pivoted
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS ORDER_KEY,
+    NULL::timestamp AS order_placed_on,
+    NULL::timestamp AS order_required_by,
+    NULL AS CUSTOMER_KEY;
 ```
 
 ## 5. Generated Bridge SQL — Event-Grain, Snapshot
@@ -339,10 +395,12 @@ order_joined AS (
         o.ORDER_KEY,
         o.order_placed_on,
         o.order_required_by,
-        r.CUSTOMER_KEY AS _key__customer
+        COALESCE(p_customer._peripheral_key, -1) AS _key__customer
     FROM order_attrs o
     LEFT JOIN rel_order_customer r
         ON o.ORDER_KEY = r.ORDER_KEY
+    LEFT JOIN uss.customer p_customer
+        ON r.CUSTOMER_KEY = p_customer.CUSTOMER_KEY
 ),
 
 -- ============================================================
@@ -354,8 +412,8 @@ order_line_joined AS (
         ola.unit_price,
         ola.quantity,
         ola.discount,
-        ro.ORDER_KEY AS _key__order,
-        rp.PRODUCT_KEY AS _key__product,
+        COALESCE(p_order._peripheral_key, -1) AS _key__order,
+        COALESCE(p_product._peripheral_key, -1) AS _key__product,
         -- Inherit from ORDER (multi-hop chain resolution)
         oj._key__customer,
         oj.order_placed_on,
@@ -367,6 +425,10 @@ order_line_joined AS (
         ON ola.ORDER_LINE_KEY = rp.ORDER_LINE_KEY
     LEFT JOIN order_joined oj
         ON ro.ORDER_KEY = oj.ORDER_KEY
+    LEFT JOIN uss.order p_order
+        ON ro.ORDER_KEY = p_order.ORDER_KEY
+    LEFT JOIN uss.product p_product
+        ON rp.PRODUCT_KEY = p_product.PRODUCT_KEY
 ),
 
 -- ============================================================
@@ -419,7 +481,7 @@ order_events AS (
 -- ============================================================
 SELECT
     'order_line' AS peripheral,
-    ole.ORDER_LINE_KEY AS _key__order_line,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
     ole._key__order,
     ole._key__product,
     ole._key__customer,
@@ -431,13 +493,15 @@ SELECT
     ole._measure__order_line__quantity,
     ole._measure__order_line__discount
 FROM order_line_events ole
+LEFT JOIN uss.order_line p_self
+    ON ole.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    oe.ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
     oe._key__customer,
     oe.event,
@@ -448,6 +512,8 @@ SELECT
     NULL::numeric AS _measure__order_line__quantity,
     NULL::numeric AS _measure__order_line__discount
 FROM order_events oe
+LEFT JOIN uss.order p_self
+    ON oe.ORDER_KEY = p_self.ORDER_KEY
 
 UNION ALL
 
@@ -459,7 +525,7 @@ SELECT
     NULL::bigint AS _key__order_line,
     NULL::bigint AS _key__order,
     NULL::bigint AS _key__product,
-    c.CUSTOMER_KEY AS _key__customer,
+    c._peripheral_key AS _key__customer,
     NULL AS event,
     NULL::timestamp AS event_occurred_on,
     NULL::date AS _key__dates,
@@ -478,7 +544,7 @@ SELECT
     'product' AS peripheral,
     NULL::bigint AS _key__order_line,
     NULL::bigint AS _key__order,
-    p.PRODUCT_KEY AS _key__product,
+    p._peripheral_key AS _key__product,
     NULL::bigint AS _key__customer,
     NULL AS event,
     NULL::timestamp AS event_occurred_on,
@@ -517,41 +583,27 @@ SELECT
 FROM uss._bridge b
 LEFT JOIN uss._dates d ON b._key__dates = d._key__dates
 LEFT JOIN uss._times t ON b._key__times = t._key__times
-LEFT JOIN uss.customer c ON b._key__customer = c.CUSTOMER_KEY
-LEFT JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
-LEFT JOIN uss.order o ON b._key__order = o.ORDER_KEY
+LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
+LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
+LEFT JOIN uss.order o ON b._key__order = o._peripheral_key
 WHERE b.peripheral = 'order_line'
   AND b.event = 'order_placed_on';
 ```
 
-### Historical Mode — Temporal Peripheral Joins
+### Historical Mode — Peripheral Joins
 
-When peripherals are generated in historical mode (`valid_from` / `valid_to`), a simple key join produces duplicates — multiple versions of the peripheral match each bridge row. Use a temporal predicate to resolve the correct version:
+Point-in-time resolution happens in the bridge during surrogate key resolution. Consumers always join via `_peripheral_key` — no temporal predicate needed at query time.
 
-**Wrong — produces duplicates:**
-```sql
--- Multiple valid_from versions per product match → fan-out
-SELECT p.product_name, SUM(b._measure__order_line__unit_price)
-FROM uss._bridge b
-JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
-GROUP BY p.product_name
-```
-
-**Correct — temporal join:**
 ```sql
 SELECT p.product_name, SUM(b._measure__order_line__unit_price)
 FROM uss._bridge b
-JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
-    AND p.valid_from <= b.event_occurred_on
-    AND p.valid_to > b.event_occurred_on
+LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
 WHERE b.peripheral = 'order_line'
   AND b.event = 'order_placed_on'
 GROUP BY p.product_name
 ```
 
-The temporal predicate `p.valid_from <= b.event_occurred_on AND p.valid_to > b.event_occurred_on` resolves exactly one version of each peripheral row per bridge row.
-
-> **Note:** This only applies when peripherals are historical. Snapshot peripherals have one row per entity key and don't need temporal predicates.
+> **Note:** Both snapshot and historical peripherals use `_peripheral_key` joins. The bridge resolves the correct version at generation time, so consumers never need temporal predicates.
 
 ## 6. Generated Synthetic SQL
 
@@ -710,9 +762,10 @@ order_joined AS (
         o.ORDER_KEY,
         o.order_placed_on,
         o.order_required_by,
-        r.CUSTOMER_KEY AS _key__customer
+        COALESCE(p_customer._peripheral_key, -1) AS _key__customer
     FROM order_attrs o
     LEFT JOIN rel_order_customer r ON o.ORDER_KEY = r.ORDER_KEY
+    LEFT JOIN uss.customer p_customer ON r.CUSTOMER_KEY = p_customer.CUSTOMER_KEY
 ),
 order_line_joined AS (
     SELECT
@@ -720,8 +773,8 @@ order_line_joined AS (
         ola.unit_price,
         ola.quantity,
         ola.discount,
-        ro.ORDER_KEY AS _key__order,
-        rp.PRODUCT_KEY AS _key__product,
+        COALESCE(p_order._peripheral_key, -1) AS _key__order,
+        COALESCE(p_product._peripheral_key, -1) AS _key__product,
         oj._key__customer,
         oj.order_placed_on,
         oj.order_required_by
@@ -729,12 +782,14 @@ order_line_joined AS (
     LEFT JOIN rel_ol_order ro ON ola.ORDER_LINE_KEY = ro.ORDER_LINE_KEY
     LEFT JOIN rel_ol_product rp ON ola.ORDER_LINE_KEY = rp.ORDER_LINE_KEY
     LEFT JOIN order_joined oj ON ro.ORDER_KEY = oj.ORDER_KEY
+    LEFT JOIN uss.order p_order ON ro.ORDER_KEY = p_order.ORDER_KEY
+    LEFT JOIN uss.product p_product ON rp.PRODUCT_KEY = p_product.PRODUCT_KEY
 )
 
 -- No unpivot — timestamps stay as columns
 SELECT
     'order_line' AS peripheral,
-    olj.ORDER_LINE_KEY AS _key__order_line,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
     olj._key__order,
     olj._key__product,
     olj._key__customer,
@@ -744,13 +799,14 @@ SELECT
     olj.quantity AS _measure__order_line__quantity,
     olj.discount AS _measure__order_line__discount
 FROM order_line_joined olj
+LEFT JOIN uss.order_line p_self ON olj.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    oj.ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
     oj._key__customer,
     oj.order_placed_on,
@@ -758,7 +814,8 @@ SELECT
     NULL::numeric AS _measure__order_line__unit_price,
     NULL::numeric AS _measure__order_line__quantity,
     NULL::numeric AS _measure__order_line__discount
-FROM order_joined oj;
+FROM order_joined oj
+LEFT JOIN uss.order p_self ON oj.ORDER_KEY = p_self.ORDER_KEY;
 ```
 
 ### Columnar join pattern for consumers
@@ -774,8 +831,8 @@ SELECT
     p.product_name,
     b._measure__order_line__unit_price
 FROM uss._bridge b
-LEFT JOIN uss.customer c ON b._key__customer = c.CUSTOMER_KEY
-LEFT JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
+LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
+LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
 WHERE b.peripheral = 'order_line'
   AND b.order_placed_on >= '2024-01-01';
 ```
@@ -862,7 +919,7 @@ order_line_versioned AS (
 ```sql
 SELECT
     'order_line' AS peripheral,
-    ole.ORDER_LINE_KEY AS _key__order_line,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
     ole._key__order,
     ole._key__product,
     ole._key__customer,
@@ -876,13 +933,15 @@ SELECT
     ole.valid_from,
     ole.valid_to
 FROM order_line_events ole
+LEFT JOIN uss.order_line p_self
+    ON ole.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    oe.ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
     oe._key__customer,
     oe.event,
@@ -894,7 +953,9 @@ SELECT
     NULL::numeric AS _measure__order_line__discount,
     oe.valid_from,
     oe.valid_to
-FROM order_events oe;
+FROM order_events oe
+LEFT JOIN uss.order p_self
+    ON oe.ORDER_KEY = p_self.ORDER_KEY;
 ```
 
 ### Historical join pattern for consumers
@@ -910,7 +971,7 @@ SELECT
     c.customer_first_name,
     b._measure__order_line__unit_price
 FROM uss._bridge b
-LEFT JOIN uss.customer c ON b._key__customer = c.CUSTOMER_KEY
+LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
 WHERE b.peripheral = 'order_line'
   AND b.valid_from <= '2024-06-15'
   AND b.valid_to > '2024-06-15';

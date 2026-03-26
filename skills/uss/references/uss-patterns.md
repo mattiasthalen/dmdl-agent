@@ -198,6 +198,83 @@ WHERE rnk = 1
 GROUP BY CUSTOMER_KEY
 ```
 
+### Surrogate Key and Versioning Layer
+
+Every peripheral — regardless of SCD type — wraps its pivoted output with a surrogate integer key and a `-1` default row.
+
+#### Type 1 (Latest Only)
+
+One row per entity. The peripheral query from above is wrapped with `ROW_NUMBER()`:
+
+```sql
+, peripheral_final AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY {entity}_KEY) AS _peripheral_key,
+        p.*
+    FROM ({pivoted_query}) p
+)
+SELECT * FROM peripheral_final
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS {entity}_KEY,
+    {NULL for each attribute column...}
+```
+
+- `_peripheral_key` is the surrogate integer key. Bridge `_key__` columns reference this, not the raw entity key.
+- The `-1` default row catches bridge rows where the relationship lookup finds no match.
+- `'UNKNOWN'` as the entity key follows the Star schema convention from teach_claude_focal.
+
+#### Type 2 (Full History — Versioned Rows)
+
+Multiple rows per entity with temporal ranges. Uses the carry-forward temporal alignment pattern, then adds version columns:
+
+```sql
+, peripheral_final AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY {entity}_KEY, EFF_TMSTP) AS _peripheral_key,
+        {entity}_KEY,
+        {attribute columns...},
+        EFF_TMSTP AS effective_from,
+        COALESCE(
+            LEAD(EFF_TMSTP) OVER (
+                PARTITION BY {entity}_KEY
+                ORDER BY EFF_TMSTP
+            ),
+            '9999-12-31'::timestamp
+        ) AS effective_to
+    FROM ({pivoted_versioned_query}) p
+)
+SELECT * FROM peripheral_final
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS {entity}_KEY,
+    {NULL for each attribute column...},
+    '1900-01-01'::timestamp AS effective_from,
+    '9999-12-31'::timestamp AS effective_to
+```
+
+- `effective_from` / `effective_to` enable point-in-time joins from the bridge.
+- The `-1` default row spans all time (`1900-01-01` to `9999-12-31`).
+- The bridge uses `COALESCE(p._peripheral_key, -1)` when a point-in-time lookup finds no matching version.
+
+#### Consumer Join Pattern
+
+Consumers join to peripherals via `_peripheral_key`, NOT via the raw entity key:
+
+```sql
+-- Type 1 peripheral (simple join)
+LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
+
+-- Type 2 peripheral (same — _peripheral_key already resolved in bridge)
+LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
+```
+
 ## Bridge Pattern — Event-Grain, Snapshot
 
 The bridge UNION ALLs rows from **ALL entities** — both bridge sources and peripherals. Every entity in the USS participates in the bridge, making each entity both a fact (contributing rows) and a dimension (joinable via FK). Each entity contributes:
@@ -291,14 +368,22 @@ For each bridge source entity, join its descriptor CTE with all applicable relat
         -- Timestamps
         a.{ts_name_1},
         a.{ts_name_2},
-        -- Relationship FKs (these become _key__{peripheral} in the bridge)
-        r1.{target_attr_name_1} AS _key__{peripheral_1},
-        r2.{target_attr_name_2} AS _key__{peripheral_2}
+        -- Resolve peripheral surrogate keys
+        COALESCE(p1._peripheral_key, -1) AS _key__{peripheral_1},
+        COALESCE(p2._peripheral_key, -1) AS _key__{peripheral_2}
     FROM {entity}_attrs a
     LEFT JOIN {rel_alias_1} r1
         ON a.{entity}_KEY = r1.{source_attr_name_1}
     LEFT JOIN {rel_alias_2} r2
         ON a.{entity}_KEY = r2.{source_attr_name_2}
+    -- Type 1 peripheral join (simple key match)
+    LEFT JOIN {target_schema}.{peripheral_1} p1
+        ON r1.{target_attr_name_1} = p1.{peripheral_1_entity}_KEY
+    -- Type 2 peripheral join (point-in-time)
+    LEFT JOIN {target_schema}.{peripheral_2} p2
+        ON r2.{target_attr_name_2} = p2.{peripheral_2_entity}_KEY
+        AND a.{event_timestamp} >= p2.effective_from
+        AND a.{event_timestamp} < p2.effective_to
 )
 ```
 
@@ -344,42 +429,47 @@ Combine **ALL entity** CTEs (bridge sources AND peripherals) into the final brid
 ```sql
 SELECT
     '{entity_1_name}' AS peripheral,
-    {entity_1}_KEY AS _key__{entity_1},
+    COALESCE(p_self._peripheral_key, -1) AS _key__{entity_1},
     NULL::bigint AS _key__{entity_2},
-    _key__{peripheral_1},
-    _key__{peripheral_2},
-    event,
-    event_occurred_on,
-    _key__dates,
-    _key__times,
-    _measure__{entity_1}__{measure_1} AS _measure__{entity_1}__{measure_1},
-    _measure__{entity_1}__{measure_2} AS _measure__{entity_1}__{measure_2},
+    e1._key__{peripheral_1},
+    e1._key__{peripheral_2},
+    e1.event,
+    e1.event_occurred_on,
+    e1._key__dates,
+    e1._key__times,
+    e1._measure__{entity_1}__{measure_1} AS _measure__{entity_1}__{measure_1},
+    e1._measure__{entity_1}__{measure_2} AS _measure__{entity_1}__{measure_2},
     NULL::numeric AS _measure__{entity_2}__{measure_3}
-FROM {entity_1}_events
+FROM {entity_1}_events e1
+LEFT JOIN {target_schema}.{entity_1} p_self
+    ON e1.{entity_1}_KEY = p_self.{entity_1}_KEY
 
 UNION ALL
 
 SELECT
     '{entity_2_name}' AS peripheral,
     NULL::bigint AS _key__{entity_1},
-    {entity_2}_KEY AS _key__{entity_2},
-    _key__{peripheral_1},
+    COALESCE(p_self._peripheral_key, -1) AS _key__{entity_2},
+    e2._key__{peripheral_1},
     NULL::bigint AS _key__{peripheral_2},
-    event,
-    event_occurred_on,
-    _key__dates,
-    _key__times,
+    e2.event,
+    e2.event_occurred_on,
+    e2._key__dates,
+    e2._key__times,
     NULL::numeric AS _measure__{entity_1}__{measure_1},
     NULL::numeric AS _measure__{entity_1}__{measure_2},
-    _measure__{entity_2}__{measure_3} AS _measure__{entity_2}__{measure_3}
-FROM {entity_2}_events
+    e2._measure__{entity_2}__{measure_3} AS _measure__{entity_2}__{measure_3}
+FROM {entity_2}_events e2
+LEFT JOIN {target_schema}.{entity_2} p_self
+    ON e2.{entity_2}_KEY = p_self.{entity_2}_KEY
 ```
 
 **Column alignment rules:**
 - Every entity contributes the same column set in every UNION ALL member.
-- Missing FK keys are `NULL::bigint`.
+- All `_key__` columns hold surrogate integer keys (`_peripheral_key` from the peripheral view), not raw entity keys. Missing keys are `NULL::bigint`.
 - Missing measures are `NULL::numeric`.
 - `peripheral`, `event`, `event_occurred_on`, `_key__dates`, `_key__times` are always present.
+- Bridge sources also contribute their own `_peripheral_key` as their `_key__{entity}` column, resolved from the peripheral view by self-joining on the entity key.
 
 ### Complete Example — Event-Grain, Snapshot Bridge
 
@@ -478,13 +568,18 @@ order_line_joined AS (
         a.unit_price,
         a.quantity,
         a.discount,
-        r_ord.ORDER_KEY AS _key__order,
-        r_prd.PRODUCT_KEY AS _key__product
+        r_ord.ORDER_KEY,  -- raw key retained for multi-hop join to order_joined
+        COALESCE(p_order._peripheral_key, -1) AS _key__order,
+        COALESCE(p_product._peripheral_key, -1) AS _key__product
     FROM order_line_attrs a
     LEFT JOIN rel_order_line_order r_ord
         ON a.ORDER_LINE_KEY = r_ord.ORDER_LINE_KEY
     LEFT JOIN rel_order_line_product r_prd
         ON a.ORDER_LINE_KEY = r_prd.ORDER_LINE_KEY
+    LEFT JOIN {target_schema}.order p_order
+        ON r_ord.ORDER_KEY = p_order.ORDER_KEY
+    LEFT JOIN {target_schema}.product p_product
+        ON r_prd.PRODUCT_KEY = p_product.PRODUCT_KEY
 ),
 
 -- ============================================================
@@ -541,10 +636,12 @@ order_joined AS (
         o.ORDER_KEY,
         o.order_placed_on,
         o.order_required_by,
-        r_cust.CUSTOMER_KEY AS _key__customer
+        COALESCE(p_customer._peripheral_key, -1) AS _key__customer
     FROM order_attrs o
     LEFT JOIN rel_order_customer r_cust
         ON o.ORDER_KEY = r_cust.ORDER_KEY
+    LEFT JOIN {target_schema}.customer p_customer
+        ON r_cust.CUSTOMER_KEY = p_customer.CUSTOMER_KEY
 ),
 
 -- ============================================================
@@ -564,7 +661,7 @@ order_line_with_order AS (
         oj.order_required_by
     FROM order_line_joined ol
     LEFT JOIN order_joined oj
-        ON ol._key__order = oj.ORDER_KEY
+        ON ol.ORDER_KEY = oj.ORDER_KEY
 ),
 
 -- ============================================================
@@ -619,35 +716,39 @@ order_events AS (
 -- ============================================================
 SELECT
     'order_line' AS peripheral,
-    ORDER_LINE_KEY AS _key__order_line,
-    _key__order,
-    _key__product,
-    _key__customer,
-    event,
-    event_occurred_on,
-    _key__dates,
-    _key__times,
-    _measure__order_line__unit_price,
-    _measure__order_line__quantity,
-    _measure__order_line__discount
-FROM order_line_events
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
+    ole._key__order,
+    ole._key__product,
+    ole._key__customer,
+    ole.event,
+    ole.event_occurred_on,
+    ole._key__dates,
+    ole._key__times,
+    ole._measure__order_line__unit_price,
+    ole._measure__order_line__quantity,
+    ole._measure__order_line__discount
+FROM order_line_events ole
+LEFT JOIN {target_schema}.order_line p_self
+    ON ole.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
-    _key__customer,
-    event,
-    event_occurred_on,
-    _key__dates,
-    _key__times,
+    oe._key__customer,
+    oe.event,
+    oe.event_occurred_on,
+    oe._key__dates,
+    oe._key__times,
     NULL::numeric AS _measure__order_line__unit_price,
     NULL::numeric AS _measure__order_line__quantity,
     NULL::numeric AS _measure__order_line__discount
-FROM order_events
+FROM order_events oe
+LEFT JOIN {target_schema}.order p_self
+    ON oe.ORDER_KEY = p_self.ORDER_KEY
 ```
 
 **Multi-hop relationship chains:** ORDER_LINE does not directly relate to CUSTOMER. The chain is ORDER_LINE → ORDER → CUSTOMER. The bridge resolves this by joining ORDER_LINE to ORDER (via the ORDER_LINE_ORDER_X relationship), and then inheriting ORDER's CUSTOMER_KEY. This means the `order_line_with_order` CTE joins the ORDER_LINE's relationships with ORDER's resolved relationships.
@@ -717,7 +818,7 @@ _valid_from__{peripheral},   -- peripheral's valid_from for point-in-time join
 This enables the consumer join pattern:
 
 ```sql
-JOIN uss.product p ON b._key__product = p.PRODUCT_KEY
+JOIN uss.product p ON b._key__product = p._peripheral_key
     AND b._valid_from__product = p.valid_from
 ```
 
@@ -762,8 +863,7 @@ Same as event-grain snapshot but timestamps stay as named columns instead of bei
 -- Instead of unpivot, the joined CTE goes directly to UNION ALL
 SELECT
     'order_line' AS peripheral,
-    ol.ORDER_LINE_KEY AS _key__order_line,
-    NULL::bigint AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
     ol._key__order,
     ol._key__product,
     ol._key__customer,
@@ -773,14 +873,15 @@ SELECT
     ol.quantity AS _measure__order_line__quantity,
     ol.discount AS _measure__order_line__discount
 FROM order_line_with_order ol
+LEFT JOIN {target_schema}.order_line p_self
+    ON ol.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    oj.ORDER_KEY AS _key__order,
-    oj.ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
     oj._key__customer,
     oj.order_placed_on,
@@ -789,6 +890,8 @@ SELECT
     NULL::numeric AS _measure__order_line__quantity,
     NULL::numeric AS _measure__order_line__discount
 FROM order_joined oj
+LEFT JOIN {target_schema}.order p_self
+    ON oj.ORDER_KEY = p_self.ORDER_KEY
 ```
 
 ## Bridge Pattern — Columnar, Historical
@@ -804,7 +907,7 @@ Combination of columnar (no unpivot) + historical (valid_from/valid_to, no ROW_S
 ```sql
 SELECT
     'order_line' AS peripheral,
-    ol.ORDER_LINE_KEY AS _key__order_line,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order_line,
     ol._key__order,
     ol._key__product,
     ol._key__customer,
@@ -816,13 +919,15 @@ SELECT
     ol.valid_from,
     ol.valid_to
 FROM order_line_versioned ol
+LEFT JOIN {target_schema}.order_line p_self
+    ON ol.ORDER_LINE_KEY = p_self.ORDER_LINE_KEY
 
 UNION ALL
 
 SELECT
     'order' AS peripheral,
     NULL::bigint AS _key__order_line,
-    oj.ORDER_KEY AS _key__order,
+    COALESCE(p_self._peripheral_key, -1) AS _key__order,
     NULL::bigint AS _key__product,
     oj._key__customer,
     oj.order_placed_on,
@@ -833,6 +938,8 @@ SELECT
     oj.valid_from,
     oj.valid_to
 FROM order_versioned oj
+LEFT JOIN {target_schema}.order p_self
+    ON oj.ORDER_KEY = p_self.ORDER_KEY
 ```
 
 ## Synthetic Date Peripheral (`_dates.sql`)
@@ -989,8 +1096,8 @@ Starting bridge sources: `SALES_ORDER_DETAIL`, `SALES_ORDER`, `PURCHASE_ORDER`, 
 Peripheral entities contribute rows to the bridge just like bridge sources, but they typically have no measures or timestamps. Their bridge rows contain:
 
 - `peripheral` = entity name (e.g., `'customer'`)
-- `_key__{entity}` = entity key (e.g., `CUSTOMER_KEY`)
-- All other `_key__*` columns = their own M:1 relationship targets (e.g., `_key__person`, `_key__store`) or NULL
+- `_key__{entity}` = `_peripheral_key` from the peripheral view (surrogate integer key, not raw entity key)
+- All other `_key__*` columns = surrogate keys resolved via their own M:1 relationship targets (e.g., `_key__person`, `_key__store`) or NULL
 - All `_measure__*` columns = NULL
 - `event` / `event_occurred_on` / `_key__dates` / `_key__times` = NULL (unless the peripheral has timestamps)
 

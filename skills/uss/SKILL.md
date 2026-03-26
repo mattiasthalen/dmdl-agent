@@ -59,12 +59,19 @@ If the user adjusts, re-classify based on their input.
   - "Event-grain unpivot (Recommended)" — Unpivots all timestamps into `event` + `event_occurred_on` rows. Enables canonical `_dates` and `_times` peripherals.
   - "Columnar dates" — Each timestamp stays as a separate column (e.g., `order_date`, `ship_date`). No synthetic date/time peripherals.
 
-### Question 3 — Historical Mode
+### Question 3 — Peripheral Versioning
 
-- Question: "Should the USS capture the latest snapshot or preserve temporal history?"
+- Question: "How should peripherals handle versioning?"
 - Options:
-  - "Snapshot (latest values)" — RANK pattern for dedup. One row per fact instance.
-  - "Historical (valid_from / valid_to)" — Preserve effective timestamps. Adds `valid_from` and `valid_to` columns to bridge and peripherals.
+  - "Latest for all (Type 1)" — One row per entity, current state. Simple key joins in the bridge.
+  - "Full history for all (Type 2)" — Versioned rows with `effective_from` / `effective_to`. Point-in-time joins in the bridge.
+  - "Per peripheral" — Choose SCD type for each peripheral individually.
+
+If "Per peripheral", ask for each peripheral entity:
+- Question: "Versioning for {ENTITY}?"
+- Options:
+  - "Type 1 (latest only)" — One row per entity.
+  - "Type 2 (full history)" — Versioned rows with temporal ranges.
 
 ### Question 4 — Materialization
 
@@ -109,7 +116,7 @@ The subagent prompt MUST include all of the following — the subagent has no ot
 8. **Interview answers:**
    - Entity classification: bridge sources and peripherals
    - Temporal mode: event-grain unpivot or columnar dates
-   - Historical mode: snapshot or historical (valid_from/valid_to)
+   - Peripheral versioning: latest all (Type 1), full history all (Type 2), or per-peripheral with individual choices
    - Materialization: views, tables, mixed, or custom per-file
    - Output folder path
    - Target schema name
