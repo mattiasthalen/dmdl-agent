@@ -87,12 +87,12 @@ For USS and star tests that generate multiple files, the Expected Output section
 
 ### USS (4 tests)
 
-| File | Temporal mode | Historical mode | Key variation |
-|------|---------------|-----------------|---------------|
-| `event-grain-snapshot.md` | Event-grain unpivot | Snapshot | Main path — unpivot timestamps, synthetic date/time peripherals |
-| `columnar-dates-snapshot.md` | Columnar dates | Snapshot | Timestamps as columns, no synthetic peripherals |
-| `event-grain-historical.md` | Event-grain unpivot | Historical | valid_from/valid_to on bridge + peripherals |
-| `columnar-dates-historical.md` | Columnar dates | Historical | Columnar timestamps + temporal history |
+| File | Temporal mode | Peripheral versioning | Key variation |
+|------|---------------|----------------------|---------------|
+| `event-grain-snapshot.md` | Event-grain unpivot | Type 1 (latest) for all | Main path — unpivot timestamps, surrogate peripheral keys, synthetic date/time peripherals |
+| `columnar-dates-snapshot.md` | Columnar dates | Type 1 (latest) for all | Timestamps as columns, no synthetic peripherals |
+| `event-grain-historical.md` | Event-grain unpivot | Type 2 (full history) for all | effective_from/effective_to on peripherals, point-in-time bridge joins |
+| `columnar-dates-historical.md` | Columnar dates | Type 2 (full history) for all | Columnar timestamps + versioned peripherals |
 
 ### Star (8 tests)
 
