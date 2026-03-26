@@ -198,6 +198,83 @@ WHERE rnk = 1
 GROUP BY CUSTOMER_KEY
 ```
 
+### Surrogate Key and Versioning Layer
+
+Every peripheral — regardless of SCD type — wraps its pivoted output with a surrogate integer key and a `-1` default row.
+
+#### Type 1 (Latest Only)
+
+One row per entity. The peripheral query from above is wrapped with `ROW_NUMBER()`:
+
+```sql
+, peripheral_final AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY {entity}_KEY) AS _peripheral_key,
+        p.*
+    FROM ({pivoted_query}) p
+)
+SELECT * FROM peripheral_final
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS {entity}_KEY,
+    {NULL for each attribute column...}
+```
+
+- `_peripheral_key` is the surrogate integer key. Bridge `_key__` columns reference this, not the raw entity key.
+- The `-1` default row catches bridge rows where the relationship lookup finds no match.
+- `'UNKNOWN'` as the entity key follows the Star schema convention from teach_claude_focal.
+
+#### Type 2 (Full History — Versioned Rows)
+
+Multiple rows per entity with temporal ranges. Uses the carry-forward temporal alignment pattern, then adds version columns:
+
+```sql
+, peripheral_final AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY {entity}_KEY, EFF_TMSTP) AS _peripheral_key,
+        {entity}_KEY,
+        {attribute columns...},
+        EFF_TMSTP AS effective_from,
+        COALESCE(
+            LEAD(EFF_TMSTP) OVER (
+                PARTITION BY {entity}_KEY
+                ORDER BY EFF_TMSTP
+            ),
+            '9999-12-31'::timestamp
+        ) AS effective_to
+    FROM ({pivoted_versioned_query}) p
+)
+SELECT * FROM peripheral_final
+
+UNION ALL
+
+SELECT
+    -1 AS _peripheral_key,
+    'UNKNOWN' AS {entity}_KEY,
+    {NULL for each attribute column...},
+    '1900-01-01'::timestamp AS effective_from,
+    '9999-12-31'::timestamp AS effective_to
+```
+
+- `effective_from` / `effective_to` enable point-in-time joins from the bridge.
+- The `-1` default row spans all time (`1900-01-01` to `9999-12-31`).
+- The bridge uses `COALESCE(p._peripheral_key, -1)` when a point-in-time lookup finds no matching version.
+
+#### Consumer Join Pattern
+
+Consumers join to peripherals via `_peripheral_key`, NOT via the raw entity key:
+
+```sql
+-- Type 1 peripheral (simple join)
+LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
+
+-- Type 2 peripheral (same — _peripheral_key already resolved in bridge)
+LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
+```
+
 ## Bridge Pattern — Event-Grain, Snapshot
 
 The bridge UNION ALLs rows from **ALL entities** — both bridge sources and peripherals. Every entity in the USS participates in the bridge, making each entity both a fact (contributing rows) and a dimension (joinable via FK). Each entity contributes:
