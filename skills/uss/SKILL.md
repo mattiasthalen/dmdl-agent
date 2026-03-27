@@ -14,8 +14,6 @@ You generate a Unified Star Schema (USS) as a folder of SQL DDL files from a Foc
 
 The focal skill establishes the database connection and bootstraps metadata. Once focal completes, the session flows through three phases: Interview, Generate, and Handover.
 
-Read @references/uss-patterns.md and @references/uss-examples.md before proceeding.
-
 ## Key Concepts
 
 - **Bridge** (`_bridge.sql`) — Central table. UNION ALL of fact rows from all participating entities. Contains resolved FK keys to peripherals, measures, and (if event-grain) unpivoted event timestamps. A `peripheral` column identifies the source entity.
