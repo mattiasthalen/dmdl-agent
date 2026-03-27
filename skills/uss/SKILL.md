@@ -108,6 +108,7 @@ The subagent prompt MUST include all of the following — the subagent has no ot
    - Only follow M:1 relationship chains (no fan-out). Exclude or flag M:M relationships.
    - Never assume physical columns — always resolve via bootstrap.
    - Use the active dialect from the focal context for all SQL generation. Only PostgreSQL patterns are currently implemented.
+   - Every `ranked` CTE in snapshot mode MUST include `WHERE ROW_ST = 'Y'` — both in peripherals and in the bridge. Historical mode omits this filter.
 3. **Bootstrap data:** The full cached bootstrap result from the current session context, serialized as a markdown table.
 4. **Connection details:** Host, port, user, database, password (env var reference), sslmode — from the current session context.
 5. **Dialect instructions:** The full dialect instructions from the current session context — execution command, statement timeout, syntax rules.
