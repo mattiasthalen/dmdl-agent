@@ -107,19 +107,24 @@ The subagent prompt MUST include all of the following — the subagent has no ot
    - Never assume physical columns — always resolve via bootstrap.
    - Use the active dialect from the focal context for all SQL generation. Only PostgreSQL patterns are currently implemented.
    - Every `ranked` CTE in snapshot mode MUST include `WHERE ROW_ST = 'Y'` — both in peripherals and in the bridge. Historical mode omits this filter.
-3. **Bootstrap data:** The full cached bootstrap result from the current session context, serialized as a markdown table.
-4. **Connection details:** Host, port, user, database, password (env var reference), sslmode — from the current session context.
-5. **Dialect instructions:** The full dialect instructions from the current session context — execution command, statement timeout, syntax rules.
-6. **USS patterns:** Read @references/uss-patterns.md and include the full contents in the subagent prompt.
-7. **USS examples:** Read @references/uss-examples.md and include the full contents in the subagent prompt.
-8. **Interview answers:**
+3. **Tool constraints:**
+   - Read the USS reference files listed below, then generate all SQL files using only the Write tool.
+   - Do NOT use the Bash tool. Do NOT run any database queries.
+   - Do NOT read any files other than the two reference files specified below.
+4. **Reference files:** "Before generating any files, read these two files:
+   - `{skill_dir}/references/uss-patterns.md` — SQL patterns for all USS components
+   - `{skill_dir}/references/uss-examples.md` — Complete worked example with sample SQL"
+
+   Where `{skill_dir}` is the absolute path to the `skills/uss/` directory (resolve at prompt-build time).
+5. **Bootstrap data:** The full cached bootstrap result from the current session context, serialized as a markdown table.
+6. **Interview answers:**
    - Entity classification: bridge sources and peripherals
    - Temporal mode: event-grain unpivot or columnar dates
    - Peripheral versioning: latest all (Type 1), full history all (Type 2), or per-peripheral with individual choices
    - Materialization: views, tables, mixed, or custom per-file
    - Output folder path
    - Target schema name
-9. **Column naming conventions:**
+7. **Column naming conventions:**
 
    | Pattern | Example | Description |
    |---------|---------|-------------|
@@ -133,17 +138,17 @@ The subagent prompt MUST include all of the following — the subagent has no ot
    | `valid_from` | `valid_from` | Historical mode only |
    | `valid_to` | `valid_to` | Historical mode only |
 
-10. **File naming rules:**
+8. **File naming rules:**
     - Peripheral entities: lowercased entity name without `_FOCAL` suffix (e.g., `CUSTOMER_FOCAL` -> `customer.sql`)
     - Synthetic files: prefixed with underscore (`_bridge.sql`, `_dates.sql`, `_times.sql`)
 
-11. **DDL wrapping rules:** Based on the user's materialization choice:
+9. **DDL wrapping rules:** Based on the user's materialization choice:
     - **View:** `CREATE OR REPLACE VIEW {schema}.{name} AS ...`
     - **Table:** `CREATE TABLE {schema}.{name} AS ...`
 
-12. **Generation order:** Peripherals first, then bridge, then synthetic date peripheral, then synthetic time peripheral.
+10. **Generation order:** Peripherals first, then bridge, then synthetic date peripheral, then synthetic time peripheral.
 
-13. **Output instructions:** "Generate all SQL files and write them to {output_folder}. Return a list of generated files with brief descriptions."
+11. **Output instructions:** "Generate all SQL files and write them to {output_folder}. Return a list of generated files with brief descriptions."
 
 ### Result handling
 
