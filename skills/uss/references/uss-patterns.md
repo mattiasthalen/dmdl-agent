@@ -275,6 +275,71 @@ LEFT JOIN uss.customer c ON b._key__customer = c._peripheral_key
 LEFT JOIN uss.product p ON b._key__product = p._peripheral_key
 ```
 
+### Peripheral Relationship Resolution
+
+Peripherals use Type 2 dedup for relationships, matching how they handle descriptors. This ensures relationship FKs reflect the relationship as-of each effective timestamp.
+
+**1. Dedup per EFF_TMSTP** (not snapshot):
+
+```sql
+ranked_{rel_table} AS (
+    SELECT
+        {source_attr_name},
+        {target_attr_name},
+        EFF_TMSTP,
+        RANK() OVER (
+            PARTITION BY {source_attr_name}, EFF_TMSTP
+            ORDER BY VER_TMSTP DESC
+        ) AS rnk
+    FROM {source_schema}.{relationship_table}
+    WHERE ROW_ST = 'Y'
+      AND TYPE_KEY = {rel_type_key}
+),
+{rel_alias} AS (
+    SELECT
+        {source_attr_name},
+        {target_attr_name},
+        EFF_TMSTP
+    FROM ranked_{rel_table}
+    WHERE rnk = 1
+)
+```
+
+**2. Merge into timeline spine** — UNION relationship EFF_TMSTPs with descriptor EFF_TMSTPs:
+
+```sql
+timeline AS (
+    SELECT DISTINCT {entity}_KEY, EFF_TMSTP
+    FROM deduped
+    UNION
+    SELECT DISTINCT {source_attr_name}, EFF_TMSTP
+    FROM {rel_alias_1}
+    UNION
+    SELECT DISTINCT {source_attr_name}, EFF_TMSTP
+    FROM {rel_alias_2}
+)
+```
+
+**3. Carry-forward in pivoted CTE** — join relationships to timeline and apply the same window function used for descriptors:
+
+```sql
+MAX(r.{target_attr_name}) OVER (
+    PARTITION BY t.{entity}_KEY
+    ORDER BY t.EFF_TMSTP
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+) AS {target_attr_name}
+```
+
+With LEFT JOIN:
+
+```sql
+LEFT JOIN {rel_alias} r
+    ON t.{source_attr_name} = r.{source_attr_name}
+    AND t.EFF_TMSTP = r.EFF_TMSTP
+```
+
+**4. No separate joins in peripheral_final** — relationship FKs are already resolved in the pivoted CTE via carry-forward, so `peripheral_final` only references `p.{target_attr_name}` from `pivoted_deduped`.
+
 ## Bridge Pattern — Event-Grain, Snapshot
 
 The bridge UNION ALLs rows from **ALL entities** — both bridge sources and peripherals. Every entity in the USS participates in the bridge, making each entity both a fact (contributing rows) and a dimension (joinable via FK). Each entity contributes:
@@ -353,6 +418,8 @@ ranked_{rel_table} AS (
 ```
 
 **Fan-out prevention:** Only include relationships where the bridge source entity is on the `FOCAL01_KEY` side (many) and the peripheral is on the `FOCAL02_KEY` side (one). This ensures M:1 only — no fan-out. If an entity appears on `FOCAL01_KEY` of multiple relationships to the same entity, those are different relationship types (different TYPE_KEYs) and each should be a separate join.
+
+> **Bridge vs. Peripheral relationship resolution:** The snapshot pattern above applies to the **bridge** only, where relationships resolve to the latest FK for joining against peripheral `effective_from`/`effective_to`. Peripherals use Type 2 dedup for relationships — see [Peripheral Relationship Resolution](#peripheral-relationship-resolution) below.
 
 ### Step 3: Join Descriptors + Relationships
 
